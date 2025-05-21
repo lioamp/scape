@@ -1,0 +1,85 @@
+body, html {
+  height: 100%;
+  background-color: #fefef5;
+  font-family: Arial, sans-serif;
+  margin: 0;
+}
+
+nav.sidebar {
+  width: 85px;
+  background-color: #5b54f2;
+  color: white;
+  height: 100vh;
+  padding-top: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Sidebar nav links */
+nav.sidebar a.nav-link {
+  color: white;
+  font-size: 12px;
+  text-align: center;
+  width: 100%;
+  padding: 10px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-decoration: none;
+  transition: background-color 0.3s ease, color 0.3s ease;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+/* Icons */
+nav.sidebar a.nav-link .icon {
+  font-size: 24px;
+  margin-bottom: 4px;
+}
+
+/* Hover effect */
+nav.sidebar a.nav-link:hover {
+  background-color: #463df7;
+  color: #d1c4ff;
+  cursor: pointer;
+}
+
+/* Active highlight - darker translucent blue */
+nav.sidebar a.nav-link.active {
+  background-color: rgba(34, 28, 123, 0.7); /* Darker blue with transparency */
+  color: #e0dfff; /* Light lavender for contrast */
+  font-weight: bold;
+  box-shadow: 0 0 8px rgba(34, 28, 123, 0.8);
+}
+
+/* Main content */
+main.content {
+  flex-grow: 1;
+  padding: 40px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Buttons inside insights */
+.btn-insight {
+  font-size: 14px;
+  padding: 15px 25px;
+  border-radius: 6px;
+  border: 1px solid black;
+  background-color: white;
+  transition: background-color 0.2s ease;
+  cursor: pointer;
+  min-width: 180px;
+  font-weight: 600;
+}
+
+.btn-insight:hover {
+  background-color: #f0f0f0;
+}
+
+.btn-group-insights {
+  display: flex;
+  gap: 40px;
+}
