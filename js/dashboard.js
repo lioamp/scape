@@ -23,7 +23,7 @@ onAuthStateChanged(auth, (user) => {
     const name = user.displayName || user.email || "User";
     const welcomeEl = document.getElementById("welcome-message");
     if (welcomeEl) {
-      welcomeEl.textContent = `Welcome, ${name}`;
+      welcomeEl.textContent = `Welcome, ${name}!`;
     }
   }
 });
