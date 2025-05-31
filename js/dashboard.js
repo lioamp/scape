@@ -18,10 +18,17 @@ const auth = getAuth(app);
 onAuthStateChanged(auth, (user) => {
   if (!user) {
     window.location.href = "index.html";
+  } else {
+    // Show display name or fallback
+    const name = user.displayName || user.email || "User";
+    const welcomeEl = document.getElementById("welcome-message");
+    if (welcomeEl) {
+      welcomeEl.textContent = `Welcome, ${name}`;
+    }
   }
 });
 
-// Expose logout to HTML
+// Logout
 window.logout = () => {
   signOut(auth)
     .then(() => {
