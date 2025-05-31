@@ -19,6 +19,9 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
+// Global variable to store current user role
+let currentUserRole = "Other";
+
 // Make logout globally callable
 window.logout = () => {
   signOut(auth)
@@ -29,6 +32,11 @@ window.logout = () => {
       console.error("Logout error:", error.message);
     });
 };
+
+// Function to get the current user role (exported)
+export async function getCurrentUserRole() {
+  return currentUserRole;
+}
 
 // Auth & Role Check
 onAuthStateChanged(auth, async (user) => {
@@ -47,12 +55,33 @@ onAuthStateChanged(auth, async (user) => {
     const idTokenResult = await getIdTokenResult(user);
     const claims = idTokenResult.claims;
 
+    if (claims.admin === true) {
+      currentUserRole = "Admin";
+    } else if (claims.marketingTeam === true) {
+      currentUserRole = "Marketing Team";
+    } else if (claims.socialMediaManager === true) {
+      currentUserRole = "Social Media Manager";
+    } else {
+      currentUserRole = "Other";
+    }
+
     const userLink = document.getElementById("user-management-link");
     if (claims.admin && userLink) {
       userLink.classList.remove("d-none");
     } else if (userLink) {
       userLink.classList.add("d-none");
     }
+
+    // Show upload button only for Admin and Marketing Team
+    const uploadSection = document.getElementById("upload-section");
+    if (uploadSection) {
+      if (currentUserRole === "Admin" || currentUserRole === "Marketing Team") {
+        uploadSection.classList.remove("d-none");
+      } else {
+        uploadSection.classList.add("d-none");
+      }
+    }
+
   } catch (error) {
     console.error("Error retrieving role claims:", error);
   }
