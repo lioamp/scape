@@ -54,6 +54,16 @@ async function fetchUsers(token) {
     }
 }
 
+function getUserRole(custom_claims) {
+    // custom_claims example:
+    // { admin: true } or { marketingTeam: true } or { socialMediaManager: true }
+    if (!custom_claims) return null;
+    if (custom_claims.admin) return "admin";
+    if (custom_claims.marketingTeam) return "marketingTeam";
+    if (custom_claims.socialMediaManager) return "socialMediaManager";
+    return null;
+}
+
 function populateUserTable(users) {
     const tbody = document.querySelector("#users-table tbody");
     tbody.innerHTML = "";
@@ -62,27 +72,23 @@ function populateUserTable(users) {
         const tr = document.createElement("tr");
         tr.dataset.uid = user.uid;
 
-        // Roles checkboxes
-        const roles = user.custom_claims || {};
-        const isAdmin = !!roles.admin;
-        const isUploader = !!roles.uploader;
-        const isViewer = !!roles.viewer;
+        const role = getUserRole(user.custom_claims) || "";
 
         tr.innerHTML = `
             <td>${user.email}</td>
             <td><input type="text" class="form-control form-control-sm display-name-input" value="${user.display_name || ''}" /></td>
             <td>
                 <div class="form-check form-check-inline">
-                    <input class="form-check-input admin-checkbox" type="checkbox" ${isAdmin ? "checked" : ""} />
-                    <label class="form-check-label">Admin</label>
+                    <input class="form-check-input role-radio" type="radio" name="role_${user.uid}" id="admin_${user.uid}" value="admin" ${role === "admin" ? "checked" : ""} />
+                    <label class="form-check-label" for="admin_${user.uid}">Admin</label>
                 </div>
                 <div class="form-check form-check-inline">
-                    <input class="form-check-input uploader-checkbox" type="checkbox" ${isUploader ? "checked" : ""} />
-                    <label class="form-check-label">Uploader</label>
+                    <input class="form-check-input role-radio" type="radio" name="role_${user.uid}" id="marketingTeam_${user.uid}" value="marketingTeam" ${role === "marketingTeam" ? "checked" : ""} />
+                    <label class="form-check-label" for="marketingTeam_${user.uid}">Marketing Team</label>
                 </div>
                 <div class="form-check form-check-inline">
-                    <input class="form-check-input viewer-checkbox" type="checkbox" ${isViewer ? "checked" : ""} />
-                    <label class="form-check-label">Viewer</label>
+                    <input class="form-check-input role-radio" type="radio" name="role_${user.uid}" id="socialMediaManager_${user.uid}" value="socialMediaManager" ${role === "socialMediaManager" ? "checked" : ""} />
+                    <label class="form-check-label" for="socialMediaManager_${user.uid}">Social Media Manager</label>
                 </div>
             </td>
             <td>
@@ -91,7 +97,6 @@ function populateUserTable(users) {
             </td>
         `;
 
-        // Disable delete button if this is the current logged in user
         if (user.uid === currentUserUid) {
             tr.querySelector(".delete-btn").disabled = true;
         }
@@ -99,7 +104,6 @@ function populateUserTable(users) {
         tbody.appendChild(tr);
     });
 
-    // Attach event listeners for save and delete buttons
     attachTableEventListeners();
 }
 
@@ -125,15 +129,22 @@ async function saveUserChanges(tr) {
     const uid = tr.dataset.uid;
     const displayName = tr.querySelector(".display-name-input").value.trim();
 
-    const roles = {
-        admin: tr.querySelector(".admin-checkbox").checked,
-        uploader: tr.querySelector(".uploader-checkbox").checked,
-        viewer: tr.querySelector(".viewer-checkbox").checked,
-    };
+    // Find selected role radio button value
+    const selectedRoleRadio = tr.querySelector(`input[name="role_${uid}"]:checked`);
+    const selectedRole = selectedRoleRadio ? selectedRoleRadio.value : null;
 
-    // If no roles are checked, clear claims by sending empty object or null
-    const hasAnyRole = Object.values(roles).some(v => v === true);
-    const claimsToSend = hasAnyRole ? roles : {};
+    if (!selectedRole) {
+        alert("Please select a role for the user.");
+        return;
+    }
+
+    // Construct roles object with only selected role set true
+    const roles = {
+        admin: false,
+        marketingTeam: false,
+        socialMediaManager: false
+    };
+    roles[selectedRole] = true;
 
     try {
         const response = await fetch(`http://localhost:5000/api/users/${uid}`, {
@@ -144,7 +155,7 @@ async function saveUserChanges(tr) {
             },
             body: JSON.stringify({
                 display_name: displayName,
-                roles: claimsToSend
+                roles: roles
             })
         });
         if (!response.ok) {
@@ -169,16 +180,15 @@ async function deleteUser(uid) {
             throw new Error(error.error || "Failed to delete user");
         }
         alert("User deleted successfully.");
-        await fetchUsers(currentUserToken); // Refresh user list
+        await fetchUsers(currentUserToken);
     } catch (error) {
         alert("Error deleting user: " + error.message);
         console.error("Error deleting user:", error.message);
     }
 }
 
-// Add User Modal creation and logic
+// Add User Modal with radio buttons for roles
 
-// Create modal DOM elements dynamically
 const modalHTML = `
 <div class="modal fade" id="addUserModal" tabindex="-1" aria-labelledby="addUserModalLabel" aria-hidden="true">
   <div class="modal-dialog">
@@ -201,18 +211,18 @@ const modalHTML = `
               <input type="text" class="form-control" id="newUserDisplayName" />
           </div>
           <div class="mb-3">
-              <label>Roles</label><br/>
+              <label>Role</label><br/>
               <div class="form-check form-check-inline">
-                <input class="form-check-input" type="checkbox" id="newUserAdmin" />
+                <input class="form-check-input" type="radio" name="newUserRole" id="newUserAdmin" value="admin" required />
                 <label class="form-check-label" for="newUserAdmin">Admin</label>
               </div>
               <div class="form-check form-check-inline">
-                <input class="form-check-input" type="checkbox" id="newUserUploader" />
-                <label class="form-check-label" for="newUserUploader">Uploader</label>
+                <input class="form-check-input" type="radio" name="newUserRole" id="newUserMarketingTeam" value="marketingTeam" />
+                <label class="form-check-label" for="newUserMarketingTeam">Marketing Team</label>
               </div>
               <div class="form-check form-check-inline">
-                <input class="form-check-input" type="checkbox" id="newUserViewer" />
-                <label class="form-check-label" for="newUserViewer">Viewer</label>
+                <input class="form-check-input" type="radio" name="newUserRole" id="newUserSocialMediaManager" value="socialMediaManager" />
+                <label class="form-check-label" for="newUserSocialMediaManager">Social Media Manager</label>
               </div>
           </div>
       </div>
@@ -225,13 +235,10 @@ const modalHTML = `
 </div>
 `;
 
-// Append modal to body
 document.body.insertAdjacentHTML('beforeend', modalHTML);
 
-// Bootstrap 5 modal instance
 const addUserModal = new bootstrap.Modal(document.getElementById('addUserModal'));
 
-// Open modal function
 window.openCreateUserModal = () => {
     clearAddUserForm();
     addUserModal.show();
@@ -241,7 +248,6 @@ function clearAddUserForm() {
     document.getElementById('addUserForm').reset();
 }
 
-// Handle form submit
 document.getElementById('addUserForm').addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -249,17 +255,21 @@ document.getElementById('addUserForm').addEventListener('submit', async (e) => {
     const password = document.getElementById('newUserPassword').value;
     const displayName = document.getElementById('newUserDisplayName').value.trim();
 
-    const roles = {
-        admin: document.getElementById('newUserAdmin').checked,
-        uploader: document.getElementById('newUserUploader').checked,
-        viewer: document.getElementById('newUserViewer').checked,
-    };
+    const roleRadio = document.querySelector('input[name="newUserRole"]:checked');
+    const selectedRole = roleRadio ? roleRadio.value : null;
 
-    // Basic validation
-    if (!email || !password) {
-        alert("Email and password are required.");
+    if (!email || !password || !selectedRole) {
+        alert("Please fill all required fields and select a role.");
         return;
     }
+
+    // Prepare roles object with only selected role set true
+    const roles = {
+        admin: false,
+        marketingTeam: false,
+        socialMediaManager: false
+    };
+    roles[selectedRole] = true;
 
     try {
         const response = await fetch("http://localhost:5000/api/users", {
@@ -287,12 +297,5 @@ document.getElementById('addUserForm').addEventListener('submit', async (e) => {
     } catch (error) {
         alert("Error creating user: " + error.message);
         console.error("Error creating user:", error.message);
-    }
-});
-
-document.addEventListener("DOMContentLoaded", () => {
-    const userLink = document.getElementById("user-management-link");
-    if (window.location.pathname.endsWith("user-management.html")) {
-        userLink.classList.add("active");
     }
 });
