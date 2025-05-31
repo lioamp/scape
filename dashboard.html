@@ -16,10 +16,8 @@
 
   <body>
     <div class="d-flex vh-100">
-      <!-- Sidebar -->
       <div id="sidebar-container"></div>
 
-      <!-- Modal for Upload -->
       <div
         class="modal fade"
         id="uploadModal"
@@ -40,7 +38,6 @@
                 ></button>
               </div>
               <div class="modal-body">
-                <!-- Select App -->
                 <div class="mb-3">
                   <label for="appSelect" class="form-label">Select App</label>
                   <select id="appSelect" class="form-select" required>
@@ -51,7 +48,6 @@
                   </select>
                 </div>
 
-                <!-- File input -->
                 <div class="mb-3">
                   <label for="dataFile" class="form-label"
                     >Choose file (Excel, CSV, JSON)</label
@@ -88,26 +84,36 @@
         </div>
       </div>
 
-      <!-- Main content -->
       <main
         class="flex-grow-1 p-4 d-flex flex-column gap-3"
         style="background-color: #fefef6"
       >
         <div class="d-flex justify-content-between align-items-center mb-3">
           <h5 id="welcome-message" class="fw-semibold text-muted mb-0"></h5>
-          <div id="upload-section" class="d-none">
-            <button
-              class="btn btn-primary"
-              data-bs-toggle="modal"
-              data-bs-target="#uploadModal"
-            >
-              Upload Data
-            </button>
+          <div class="d-flex align-items-center gap-3">
+            <div class="dropdown">
+              <button class="btn btn-secondary dropdown-toggle" type="button" id="platformFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                Platform: All
+              </button>
+              <ul class="dropdown-menu" aria-labelledby="platformFilterDropdown">
+                <li><a class="dropdown-item" href="#" data-platform="all">All Platforms</a></li>
+                <li><a class="dropdown-item" href="#" data-platform="tiktok">TikTok</a></li>
+                <li><a class="dropdown-item" href="#" data-platform="facebook">Facebook</a></li>
+              </ul>
+            </div>
+            <div id="upload-section" class="d-none">
+              <button
+                class="btn btn-primary"
+                data-bs-toggle="modal"
+                data-bs-target="#uploadModal"
+              >
+                Upload Data
+              </button>
+            </div>
           </div>
         </div>
 
         <div class="row g-3">
-          <!-- Reach card -->
           <div class="col">
             <div class="card position-relative">
               <div class="card-header fw-bold">Reach</div>
@@ -125,7 +131,6 @@
             </div>
           </div>
 
-          <!-- Engagement card -->
           <div class="col">
             <div class="card position-relative">
               <div class="card-header fw-bold">Engagement</div>
@@ -143,7 +148,6 @@
             </div>
           </div>
 
-          <!-- Summary card -->
           <div class="col">
             <div class="card position-relative">
               <div class="card-header fw-bold">&nbsp;</div>
@@ -163,7 +167,6 @@
           </div>
         </div>
 
-        <!-- Monthly Sales + Top Performers -->
         <div class="row g-3">
           <div class="col-8">
             <div class="card position-relative h-100">
@@ -184,14 +187,15 @@
 
           <div class="col-4">
             <div class="card position-relative h-100">
-              <div class="card-header fw-bold">Top Performers</div>
-              <div
+                <div class="card-header fw-bold">Top Performers</div>
+                <canvas id="topPerformersChart" style="max-height: 350px; width: 100%;"></canvas>
+                <div
                 class="filter-icon position-absolute top-0 end-0 p-2"
                 role="button"
                 title="Filter"
-              >
+                >
                 &#128269;
-              </div>
+                </div>
             </div>
           </div>
         </div>
