@@ -49,8 +49,7 @@ def admin_required(f):
         if not id_token:
             return jsonify({'error': 'Missing Authorization header'}), 401
         try:
-            # Allow 60 seconds clock skew to fix "Token used too early" errors
-            decoded_token = auth.verify_id_token(id_token, clock_skew_seconds=60)
+            decoded_token = auth.verify_id_token(id_token)
             uid = decoded_token['uid']
             user = auth.get_user(uid)
             if user.custom_claims and user.custom_claims.get('admin'):
@@ -72,10 +71,65 @@ def list_users():
                 'uid': user.uid,
                 'email': user.email,
                 'display_name': user.display_name,
-                'custom_claims': user.custom_claims
+                'custom_claims': user.custom_claims or {}
             })
         page = page.get_next_page()
     return jsonify(users), 200
+
+@app.route('/api/users', methods=['POST'])
+@admin_required
+def create_user():
+    data = request.json
+    email = data.get('email')
+    password = data.get('password')
+    display_name = data.get('display_name')
+    roles = data.get('roles', {})  # e.g. {"admin": True, "uploader": False}
+
+    if not email or not password:
+        return jsonify({'error': 'Email and password are required'}), 400
+    try:
+        user = auth.create_user(
+            email=email,
+            password=password,
+            display_name=display_name
+        )
+        if roles:
+            auth.set_custom_user_claims(user.uid, roles)
+        return jsonify({'message': 'User created', 'uid': user.uid}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/users/<uid>', methods=['PUT'])
+@admin_required
+def update_user(uid):
+    data = request.json
+    display_name = data.get('display_name')
+    roles = data.get('roles', {})
+
+    try:
+        auth.update_user(uid, display_name=display_name)
+        if roles:
+            auth.set_custom_user_claims(uid, roles)
+        else:
+            # Remove custom claims if empty
+            auth.set_custom_user_claims(uid, None)
+        return jsonify({'message': 'User updated'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/users/<uid>', methods=['DELETE'])
+@admin_required
+def delete_user(uid):
+    id_token = request.headers.get('Authorization')
+    try:
+        decoded_token = auth.verify_id_token(id_token)
+        current_uid = decoded_token['uid']
+        if current_uid == uid:
+            return jsonify({'error': 'You cannot delete your own account'}), 403
+        auth.delete_user(uid)
+        return jsonify({'message': 'User deleted'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
 
 if __name__ == "__main__":
     app.run(debug=True)
