@@ -13,36 +13,10 @@
     <body>
         <div class="d-flex vh-100">
             <!-- Sidebar -->
-            <nav class="sidebar d-flex flex-column align-items-center bg-primary text-white">
-                <a href="dashboard.html" id="dashboard-link" class="nav-link small text-center text-decoration-none w-100 py-2 d-flex flex-column align-items-center gap-1">
-                    <div class="fs-2">&#128202;</div>
-                    <div>Dashboard</div>
-                </a>
-
-                <a href="performance-evaluation.html" id="performance-link" class="nav-link small text-center text-decoration-none w-100 py-2 d-flex flex-column align-items-center gap-1">
-                    <div class="fs-2">&#128200;</div>
-                    <div>Performance</div>
-                </a>
-
-                <a href="correlation-analysis.html" id="correlation-link" class="nav-link small text-center text-decoration-none w-100 py-2 d-flex flex-column align-items-center gap-1">
-                    <div class="fs-2">&#128201;</div>
-                    <div>Correlation</div>
-                </a>
-
-                <a href="predictive-analytics.html" id="predictive-link" class="nav-link small text-center text-decoration-none w-100 py-2 d-flex flex-column align-items-center gap-1">
-                    <div class="fs-2">&#128221;</div>
-                    <div>Predictive</div>
-                </a>
-                <a href="user-management.html" id="user-management-link" class="nav-link small text-center text-decoration-none w-100 py-2 d-flex flex-column align-items-center gap-1">
-                    <div class="fs-2">&#128100;</div>
-                    <div>Users</div>
-                </a>
-                <button onclick="logout()" class="btn btn-sm btn-light mt-auto mb-3 sidebar-logout-btn">Logout</button>
-            </nav>
-
+            <div id="sidebar-container"></div>
             <!-- Main content -->
             <main class="flex-grow-1 p-3 d-flex flex-column gap-3" style="background-color: #fefef6;">
-                <h5 id="welcome-message" class="mb-3 text-primary">Welcome</h5>
+                <h5 id="welcome-message" class="fw-semibold text-muted mb-3"></h5>
                 <div class="row g-3">
                     <!-- Reach card -->
                     <div class="col">
@@ -95,5 +69,6 @@
         </div>
 
         <script type="module" src="js/dashboard.js"></script>
+        <script src="js/loadSidebar.js" type="module"></script>
     </body>
 </html>

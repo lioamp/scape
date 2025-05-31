@@ -1,130 +1,105 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Performance Evaluation</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
-    <link rel="stylesheet" href="style/style.css" />
-</head>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Performance Evaluation</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+        <link rel="stylesheet" href="style/style.css" />
+    </head>
 
-<body>
-    <div class="d-flex vh-100">
-        <!-- Sidebar -->
-        <nav class="sidebar d-flex flex-column align-items-center bg-primary text-white">
-            <a href="dashboard.html" id="dashboard-link" class="nav-link small text-center text-decoration-none w-100 py-2 d-flex flex-column align-items-center gap-1">
-                <div class="fs-2">&#128202;</div>
-                <div>Dashboard</div>
-            </a>
+    <body>
+        <div class="d-flex vh-100">
+            <!-- Sidebar -->
+            <div id="sidebar-container"></div>
+            <!-- Main content -->
+            <main class="flex-grow-1 p-4" style="background-color: #fefef6;">
+                <div class="text-center mb-4">
+                    <h5 class="border border-dark p-3" style="font-size: 14px; font-weight: bold;">
+                        PERFORMANCE EVALUATION (COMPARING ACTUAL PERFORMANCE VS. KPI TARGETS) - TO ANSWER CAMPAIGN EFFECTIVENESS
+                    </h5>
+                </div>
 
-            <a href="performance-evaluation.html" id="performance-link" class="nav-link small text-center text-decoration-none w-100 py-2 d-flex flex-column align-items-center gap-1">
-                <div class="fs-2">&#128200;</div>
-                <div>Performance</div>
-            </a>
-
-            <a href="correlation-analysis.html" id="correlation-link" class="nav-link small text-center text-decoration-none w-100 py-2 d-flex flex-column align-items-center gap-1">
-                <div class="fs-2">&#128201;</div>
-                <div>Correlation</div>
-            </a>
-
-            <a href="predictive-analytics.html" id="predictive-link" class="nav-link small text-center text-decoration-none w-100 py-2 d-flex flex-column align-items-center gap-1">
-                <div class="fs-2">&#128221;</div>
-                <div>Predictive</div>
-            </a>
-            <a href="user-management.html" id="user-management-link" class="nav-link small text-center text-decoration-none w-100 py-2 d-flex flex-column align-items-center gap-1">
-                    <div class="fs-2">&#128100;</div>
-                    <div>Users</div>
-                </a>
-            <button onclick="logout()" class="btn btn-sm btn-light mt-auto mb-3 sidebar-logout-btn">Logout</button>
-        </nav>
-
-        <!-- Main Content -->
-        <main class="flex-grow-1 p-4" style="background-color: #fefef6;">
-            <div class="text-center mb-4">
-                <h5 class="border border-dark p-3" style="font-size: 14px; font-weight: bold;">
-                    PERFORMANCE EVALUATION (COMPARING ACTUAL PERFORMANCE VS. KPI TARGETS) - TO ANSWER CAMPAIGN EFFECTIVENESS
-                </h5>
-            </div>
-
-            <div class="d-flex justify-content-center gap-4 mb-4 flex-wrap">
-                <div class="card" role="button" style="width: 250px; cursor: pointer;" onclick="showVisualization('engagement')">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <span>Engagement Rate</span>
-                        <span style="font-size: 18px;">🔍</span>
+                <div class="d-flex justify-content-center gap-4 mb-4 flex-wrap">
+                    <div class="card" role="button" style="width: 250px; cursor: pointer;" onclick="showVisualization('engagement')">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span>Engagement Rate</span>
+                            <span style="font-size: 18px;">🔍</span>
+                        </div>
+                        <div class="card-body">
+                            <p>(engagement / reach) x 100<br />Goal: 5%<br />Current: 300 / 6000 = 5%</p>
+                            <p><strong>DATE Range</strong> (adjusted based on campaign)</p>
+                        </div>
                     </div>
-                    <div class="card-body">
-                        <p>(engagement / reach) x 100<br />Goal: 5%<br />Current: 300 / 6000 = 5%</p>
-                        <p><strong>DATE Range</strong> (adjusted based on campaign)</p>
+
+                    <div class="card" role="button" style="width: 250px; cursor: pointer;" onclick="showVisualization('reach')">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span>Reach</span>
+                            <span style="font-size: 18px;">🔍</span>
+                        </div>
+                        <div class="card-body">
+                            <p>Goal: 8000<br />Current: 6000</p>
+                        </div>
+                    </div>
+
+                    <div class="card" role="button" style="width: 250px; cursor: pointer;" onclick="showVisualization('conversion')">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span>Conversion Rate</span>
+                            <span style="font-size: 18px;">🔍</span>
+                        </div>
+                        <div class="card-body">
+                            <p>Goal: 4%<br />Current: 3.2%</p>
+                            <p><strong>DATE Range</strong> (adjusted based on campaign)</p>
+                        </div>
                     </div>
                 </div>
 
-                <div class="card" role="button" style="width: 250px; cursor: pointer;" onclick="showVisualization('reach')">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <span>Reach</span>
-                        <span style="font-size: 18px;">🔍</span>
-                    </div>
-                    <div class="card-body">
-                        <p>Goal: 8000<br />Current: 6000</p>
+                <div class="d-flex justify-content-center gap-3 mb-4 flex-wrap">
+                    <button class="btn btn-outline-primary">RECOMMENDATION BASED ON THE RESULT</button>
+                    <button class="btn btn-outline-primary">RECOMMENDATION BASED ON THE RESULT</button>
+                    <button class="btn btn-outline-primary">RECOMMENDATION BASED ON THE RESULT</button>
+                </div>
+
+                <!-- Visualizations -->
+                <div id="engagement" class="visualization d-none text-center">
+                    <h3>Engagement Rate Visualization</h3>
+                    <div class="d-flex justify-content-center align-items-end gap-3" style="height: 150px;">
+                        <div style="width: 40px; height: 60%; background-color: #5b54f2; color: white; text-align: center; font-size: 10px;">
+                            5%<br /><small>Goal</small>
+                        </div>
+                        <div style="width: 40px; height: 60%; background-color: #5b54f2; color: white; text-align: center; font-size: 10px;">
+                            5%<br /><small>Current</small>
+                        </div>
                     </div>
                 </div>
 
-                <div class="card" role="button" style="width: 250px; cursor: pointer;" onclick="showVisualization('conversion')">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <span>Conversion Rate</span>
-                        <span style="font-size: 18px;">🔍</span>
-                    </div>
-                    <div class="card-body">
-                        <p>Goal: 4%<br />Current: 3.2%</p>
-                        <p><strong>DATE Range</strong> (adjusted based on campaign)</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="d-flex justify-content-center gap-3 mb-4 flex-wrap">
-                <button class="btn btn-outline-primary">RECOMMENDATION BASED ON THE RESULT</button>
-                <button class="btn btn-outline-primary">RECOMMENDATION BASED ON THE RESULT</button>
-                <button class="btn btn-outline-primary">RECOMMENDATION BASED ON THE RESULT</button>
-            </div>
-
-            <!-- Visualizations -->
-            <div id="engagement" class="visualization d-none text-center">
-                <h3>Engagement Rate Visualization</h3>
-                <div class="d-flex justify-content-center align-items-end gap-3" style="height: 150px;">
-                    <div style="width: 40px; height: 60%; background-color: #5b54f2; color: white; text-align: center; font-size: 10px;">
-                        5%<br /><small>Goal</small>
-                    </div>
-                    <div style="width: 40px; height: 60%; background-color: #5b54f2; color: white; text-align: center; font-size: 10px;">
-                        5%<br /><small>Current</small>
+                <div id="reach" class="visualization d-none text-center">
+                    <h3>Reach Visualization</h3>
+                    <div class="d-flex justify-content-center align-items-end gap-3" style="height: 150px;">
+                        <div style="width: 40px; height: 100%; background-color: #5b54f2; color: white; text-align: center; font-size: 10px;">
+                            8000<br /><small>Goal</small>
+                        </div>
+                        <div style="width: 40px; height: 75%; background-color: #5b54f2; color: white; text-align: center; font-size: 10px;">
+                            6000<br /><small>Current</small>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div id="reach" class="visualization d-none text-center">
-                <h3>Reach Visualization</h3>
-                <div class="d-flex justify-content-center align-items-end gap-3" style="height: 150px;">
-                    <div style="width: 40px; height: 100%; background-color: #5b54f2; color: white; text-align: center; font-size: 10px;">
-                        8000<br /><small>Goal</small>
-                    </div>
-                    <div style="width: 40px; height: 75%; background-color: #5b54f2; color: white; text-align: center; font-size: 10px;">
-                        6000<br /><small>Current</small>
+                <div id="conversion" class="visualization d-none text-center">
+                    <h3>Conversion Rate Visualization</h3>
+                    <div class="d-flex justify-content-center align-items-end gap-3" style="height: 150px;">
+                        <div style="width: 40px; height: 80%; background-color: #5b54f2; color: white; text-align: center; font-size: 10px;">
+                            4%<br /><small>Goal</small>
+                        </div>
+                        <div style="width: 40px; height: 64%; background-color: #5b54f2; color: white; text-align: center; font-size: 10px;">
+                            3.2%<br /><small>Current</small>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </main>
+        </div>
 
-            <div id="conversion" class="visualization d-none text-center">
-                <h3>Conversion Rate Visualization</h3>
-                <div class="d-flex justify-content-center align-items-end gap-3" style="height: 150px;">
-                    <div style="width: 40px; height: 80%; background-color: #5b54f2; color: white; text-align: center; font-size: 10px;">
-                        4%<br /><small>Goal</small>
-                    </div>
-                    <div style="width: 40px; height: 64%; background-color: #5b54f2; color: white; text-align: center; font-size: 10px;">
-                        3.2%<br /><small>Current</small>
-                    </div>
-                </div>
-            </div>
-        </main>
-    </div>
-
-    <script type="module" src="js/performance-evaluation.js"></script>
-</body>
+        <script type="module" src="js/performance-evaluation.js"></script>
+        <script src="js/loadSidebar.js" type="module"></script>
+    </body>
 </html>

@@ -11,30 +11,7 @@
   <body>
     <div class="d-flex vh-100">
       <!-- Sidebar -->
-      <nav class="sidebar d-flex flex-column align-items-center bg-primary text-white">
-        <a href="dashboard.html" class="nav-link small text-center text-decoration-none w-100 py-2 d-flex flex-column align-items-center gap-1">
-          <div class="fs-2">&#128202;</div>
-          <div>Dashboard</div>
-        </a>
-        <a href="performance-evaluation.html" class="nav-link small text-center text-decoration-none w-100 py-2 d-flex flex-column align-items-center gap-1">
-          <div class="fs-2">&#128200;</div>
-          <div>Performance</div>
-        </a>
-        <a href="correlation-analysis.html" class="nav-link small text-center text-decoration-none w-100 py-2 d-flex flex-column align-items-center gap-1 active">
-          <div class="fs-2">&#128201;</div>
-          <div>Correlation</div>
-        </a>
-        <a href="predictive-analytics.html" class="nav-link small text-center text-decoration-none w-100 py-2 d-flex flex-column align-items-center gap-1">
-          <div class="fs-2">&#128221;</div>
-          <div>Predictive</div>
-        </a>
-        <a href="user-management.html" id="user-management-link" class="nav-link small text-center text-decoration-none w-100 py-2 d-flex flex-column align-items-center gap-1">
-                    <div class="fs-2">&#128100;</div>
-                    <div>Users</div>
-                </a>
-        <button onclick="logout()" class="btn btn-sm btn-light mt-auto mb-3 sidebar-logout-btn">Logout</button>
-      </nav>
-
+      <div id="sidebar-container"></div>
       <!-- Main Content -->
       <main class="flex-grow-1 p-4" style="background-color: #fefef6;">
         <div class="text-center mb-4">
@@ -121,6 +98,6 @@
     </div>
 
     <script type="module" src="js/correlation-analysis.js"></script>
-
+    <script src="js/loadSidebar.js" type="module"></script>
   </body>
 </html>
