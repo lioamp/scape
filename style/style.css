@@ -122,7 +122,7 @@ nav.sidebar a.nav-link.active .icon {
 .sidebar-bottom-btn {
     width: calc(100% - 30px); /* Adjusted width to account for sidebar-bottom-btn-container padding */
     padding: 12px 15px;
-    /* Changed gradient to blue-purple */
+    /* Use the same blue-purple gradient as login button */
     background: linear-gradient(135deg, #7B68EE, #5A4CD1); /* Blue-purple gradient for button */
     color: white;
     border: none;
@@ -138,12 +138,12 @@ nav.sidebar a.nav-link.active .icon {
 }
 
 .sidebar-bottom-btn:hover {
-    /* Changed gradient to blue-purple on hover */
+    /* Use the same blue-purple gradient hover as login button */
     background: linear-gradient(135deg, #8A7AEF, #6A5ACD); /* Lighter blue-purple on hover */
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
-/* Main content */
+/* Main content for dashboard */
 main {
   flex-grow: 1;
   padding: 40px; /* Keeps consistent padding around the content */
@@ -153,9 +153,10 @@ main {
   align-items: stretch; /* Stretch items to fill available width */
   overflow-y: auto; /* Allow scrolling for the main content area */
   height: 100%; /* Make main take full height of its container, allowing its flex parent to define total height */
+  background-color: #f8f9fa; /* Light grey background for dashboard main content */
 }
 
-/* Buttons inside insights */
+/* Buttons inside insights (general button style for dashboard) */
 .btn-insight {
   font-size: 14px;
   padding: 15px 25px;
@@ -312,4 +313,124 @@ main {
     bottom: -60px;
     right: -50px;
     transform: rotate(-30deg);
+}
+
+/* Dashboard Specific Styles */
+.dashboard-btn-gradient {
+    /* Consistent button style with login and sidebar */
+    background: linear-gradient(135deg, #7B68EE, #5A4CD1); /* Blue-purple gradient */
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 0.75rem 1.25rem; /* Slightly less padding for dropdown */
+    font-size: 0.95rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.dashboard-btn-gradient:hover {
+    background: linear-gradient(135deg, #8A7AEF, #6A5ACD); /* Lighter blue-purple on hover */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    transform: translateY(-1px); /* Slight lift */
+}
+
+.dashboard-btn-gradient.dropdown-toggle::after {
+    margin-left: 0.75em; /* Adjust dropdown arrow spacing */
+}
+
+/* Card Styling for Dashboard */
+.card {
+    border: none; /* Remove default bootstrap border */
+    border-radius: 15px; /* Consistent rounded corners */
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1); /* Subtle shadow for floating effect */
+    background-color: white; /* Ensure card background is white */
+}
+
+.card-header {
+    background-color: #ffffff; /* White background for header */
+    border-bottom: 1px solid #f0f0f0; /* Lighter border for separation */
+    font-size: 1.1rem;
+    padding: 1rem 1.5rem;
+    color: #333; /* Darker text for headers */
+    font-weight: 600;
+    border-top-left-radius: 15px; /* Match card border radius */
+    border-top-right-radius: 15px; /* Match card border radius */
+}
+
+/* Small Summary Card Specifics */
+.small-card {
+    background-color: white; /* Ensure white background for small cards */
+    border-radius: 10px; /* Slightly more rounded than default */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); /* Softer shadow for small cards */
+    padding: 1.25rem !important; /* Adjust padding for better spacing */
+    flex: 1; /* Ensure they distribute space evenly */
+    min-width: 180px; /* Prevent shrinking too much */
+}
+
+.small-card-value {
+    color: #5A4CD1; /* Blue-purple color for summary values */
+    font-size: 2.2rem; /* Larger font size for emphasis */
+    margin-top: 0.5rem;
+}
+
+.small-card .text-muted {
+    font-size: 0.9rem;
+}
+
+/* Modal Styling */
+.modal-content {
+    border-radius: 15px; /* Rounded corners for modal */
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+.modal-header {
+    border-bottom: 1px solid #f0f0f0;
+    background-color: #f8f9fa; /* Light background for modal header */
+    border-top-left-radius: 15px;
+    border-top-right-radius: 15px;
+}
+
+.modal-footer {
+    border-top: 1px solid #f0f0f0;
+    background-color: #f8f9fa; /* Light background for modal footer */
+    border-bottom-left-radius: 15px;
+    border-bottom-right-radius: 15px;
+}
+
+.modal-title {
+    color: #333;
+    font-weight: 600;
+}
+
+.btn-success {
+    background: linear-gradient(135deg, #7B68EE, #5A4CD1) !important; /* Blue-purple gradient for success button */
+    border: none !important;
+    border-radius: 8px !important;
+    padding: 0.6rem 1.2rem !important;
+    font-weight: 600 !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+}
+
+.btn-success:hover {
+    background: linear-gradient(135deg, #8A7AEF, #6A5ACD) !important; /* Lighter blue-purple on hover */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3) !important;
+    transform: translateY(-1px) !important;
+}
+
+.btn-danger {
+    background-color: #dc3545 !important; /* Standard red for danger */
+    border: none !important;
+    border-radius: 8px !important;
+    padding: 0.6rem 1.2rem !important;
+    font-weight: 600 !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+}
+
+.btn-danger:hover {
+    background-color: #c82333 !important;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3) !important;
+    transform: translateY(-1px) !important;
 }
