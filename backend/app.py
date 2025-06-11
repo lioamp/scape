@@ -15,7 +15,7 @@ CORS(app)
 
 # --- Supabase config ---
 SUPABASE_URL = "https://jfajaxpzkjqvdibdyibz.supabase.co"
-SUPABASE_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpmYWpheHB6a2pxdmRpYmR5aWJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc4OTM0OTAsImV4cCI6MjA2MzQ2OTQ5MH0.JrTYWt8RLa5mfk4Yz6_R7ESfch1LNIRP-2be6dA7H7M"
+SUPABASE_API_KEY = "REMOVED.geM5QBwNnagPeaHdZxTwkbtIfMBubR8rGX1cgbDlj10"
 
 HEADERS = {
     "apikey": SUPABASE_API_KEY,
