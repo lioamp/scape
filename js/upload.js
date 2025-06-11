@@ -39,15 +39,27 @@ uploadForm.addEventListener("submit", async (e) => {
     formData.append("app", app);
     formData.append("file", file);
 
-    const response = await fetch("/api/upload-data", {
+    const response = await fetch("http://127.0.0.1:5000/api/upload-data", {
       method: "POST",
       body: formData,
     });
 
-    const result = await response.json();
+    // Check if the response status is 204 (No Content) or if there's no content type header
+    // Only attempt to parse JSON if there's actual content
+    let result = {};
+    if (response.status !== 204 && response.headers.get('content-type')?.includes('application/json')) {
+      result = await response.json();
+    } else if (response.status === 204) {
+      // If it's 204, it's a successful response with no content
+      result = { message: "Upload successful (no content returned from server)." };
+    } else {
+      // For other cases where content-type is not JSON or it's empty
+      result = { message: response.statusText || "Unknown error occurred." };
+    }
+
 
     if (response.ok) {
-      uploadStatus.textContent = "Upload successful!";
+      uploadStatus.textContent = "Upload successful! " + (result.message || "");
       setTimeout(() => {
         uploadStatus.style.display = "none";
         const uploadModal = bootstrap.Modal.getInstance(document.getElementById('uploadModal'));
@@ -55,7 +67,8 @@ uploadForm.addEventListener("submit", async (e) => {
         uploadForm.reset();
       }, 1500);
     } else {
-      uploadStatus.textContent = "Upload failed: " + result.message;
+      // Use the message from the server if available, otherwise a generic error
+      uploadStatus.textContent = "Upload failed: " + (result.message || `Status: ${response.status}`);
     }
   } catch (err) {
     uploadStatus.textContent = "Upload error: " + err.message;
