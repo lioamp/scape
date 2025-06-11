@@ -44,7 +44,7 @@
                     <option value="" disabled selected>Select an app</option>
                     <option value="facebook">Facebook</option>
                     <option value="tiktok">TikTok</option>
-                    <option value="tiktokShopSales">TikTok Shop Sales</option>
+                    <option value="tiktokShopSales">Sales</option>
                   </select>
                 </div>
 
@@ -88,11 +88,12 @@
         class="flex-grow-1 p-4 d-flex flex-column gap-3"
         style="background-color: #fefef6"
       >
+      <!-- Platform Filter -->
         <div class="d-flex justify-content-between align-items-center mb-3">
           <h5 id="welcome-message" class="fw-semibold text-muted mb-0"></h5>
           <div class="d-flex align-items-center gap-3">
             <div class="dropdown">
-              <button class="btn btn-secondary dropdown-toggle" type="button" id="platformFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+              <button class="btn btn-outline-danger dropdown-toggle" type="button" id="platformFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                 Platform: All
               </button>
               <ul class="dropdown-menu" aria-labelledby="platformFilterDropdown">
@@ -103,7 +104,7 @@
             </div>
             <div id="upload-section" class="d-none">
               <button
-                class="btn btn-primary"
+                class="btn btn-success"
                 data-bs-toggle="modal"
                 data-bs-target="#uploadModal"
               >
@@ -114,6 +115,7 @@
         </div>
 
         <div class="row g-3">
+          <!-- Reach Table -->
           <div class="col">
             <div class="card position-relative">
               <div class="card-header fw-bold">Reach</div>
@@ -121,16 +123,11 @@
                 id="reachChart"
                 style="max-height: 250px; width: 100%"
               ></canvas>
-              <div
-                class="filter-icon position-absolute top-0 end-0 p-2"
-                role="button"
-                title="Filter"
-              >
-                &#128269;
-              </div>
+              
             </div>
           </div>
-
+          
+          <!-- Engagement Table -->
           <div class="col">
             <div class="card position-relative">
               <div class="card-header fw-bold">Engagement</div>
@@ -138,26 +135,15 @@
                 id="engagementChart"
                 style="max-height: 250px; width: 100%"
               ></canvas>
-              <div
-                class="filter-icon position-absolute top-0 end-0 p-2"
-                role="button"
-                title="Filter"
-              >
-                &#128269;
-              </div>
+              
             </div>
           </div>
-
+          
+          <!-- Summary Table -->
           <div class="col">
             <div class="card position-relative">
               <div class="card-header fw-bold">&nbsp;</div>
-              <div
-                class="filter-icon position-absolute top-0 end-0 p-2"
-                role="button"
-                title="Filter"
-              >
-                &#128269;
-              </div>
+              
               <div class="d-flex justify-content-between mt-3">
                 <div class="small-card text-center p-2">Reach</div>
                 <div class="small-card text-center p-2">Engagement</div>
@@ -167,35 +153,25 @@
           </div>
         </div>
 
+        <!-- Sales Table -->
         <div class="row g-3">
           <div class="col-8">
             <div class="card position-relative h-100">
-              <div class="card-header fw-bold">Monthly Sales</div>
+              <div class="card-header fw-bold">Sales</div>
               <canvas
                 id="salesChart"
                 style="max-height: 350px; width: 100%"
               ></canvas>
-              <div
-                class="filter-icon position-absolute top-0 end-0 p-2"
-                role="button"
-                title="Filter"
-              >
-                &#128269;
-              </div>
+              
             </div>
           </div>
 
+          <!-- Performance Table -->
           <div class="col-4">
             <div class="card position-relative h-100">
                 <div class="card-header fw-bold">Top Performers</div>
                 <canvas id="topPerformersChart" style="max-height: 350px; width: 100%;"></canvas>
-                <div
-                class="filter-icon position-absolute top-0 end-0 p-2"
-                role="button"
-                title="Filter"
-                >
-                &#128269;
-                </div>
+                
             </div>
           </div>
         </div>

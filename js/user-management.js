@@ -68,6 +68,10 @@ function populateUserTable(users) {
     const tbody = document.querySelector("#users-table tbody");
     tbody.innerHTML = "";
 
+    // Find current user's role from the list
+    const currentUserData = users.find(u => u.uid === currentUserUid);
+    const currentUserRole = getUserRole(currentUserData?.custom_claims) || "";
+
     users.forEach(user => {
         const tr = document.createElement("tr");
         tr.dataset.uid = user.uid;
@@ -97,8 +101,15 @@ function populateUserTable(users) {
             </td>
         `;
 
-        if (user.uid === currentUserUid) {
-            tr.querySelector(".delete-btn").disabled = true;
+        const deleteBtn = tr.querySelector(".delete-btn");
+
+        // Disable delete if:
+        // 1. This user is the current user (self)
+        // 2. The current user is an admin and the target user is also an admin
+        if (user.uid === currentUserUid || 
+            (currentUserRole === "admin" && role === "admin")) {
+            deleteBtn.disabled = true;
+            deleteBtn.title = "Admin accounts cannot delete other Admins.";
         }
 
         tbody.appendChild(tr);
@@ -106,6 +117,7 @@ function populateUserTable(users) {
 
     attachTableEventListeners();
 }
+
 
 function attachTableEventListeners() {
     document.querySelectorAll(".save-btn").forEach(btn => {
