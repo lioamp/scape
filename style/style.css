@@ -1,65 +1,155 @@
+/* Import Roboto font from Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+
+/* General Body and HTML styles for the main dashboard */
 body, html {
   height: 100%;
   background-color: #fefef5;
-  font-family: Arial, sans-serif;
+  font-family: 'Roboto', sans-serif; /* Changed font to Roboto */
   margin: 0;
+  overflow: hidden; /* Prevent overall page scrolling, only main content should scroll */
+}
+
+/* Apply padding-left ONLY when body does NOT have the login-page-body class */
+body:not(.login-page-body) {
+    padding-left: 250px; /* Offset for the fixed sidebar width (now 250px) */
+}
+
+
+/* Specific body style for the login page */
+body.login-page-body {
+    background-color: #e0e0e0; /* Light gray background as per new design */
+    display: flex; /* Ensure full viewport height and centering of content */
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+
+/* Ensure the main container fills the height and allows scroll */
+.d-flex.vh-100 {
+    height: 100vh; /* Make sure the main container is viewport height */
 }
 
 nav.sidebar {
-  width: 85px;
-  background-color: #5b54f2;
+  width: 250px; /* Increased sidebar width */
+  background-color: #1a2035; /* Darker background color for a modern feel */
   color: white;
-  height: 100vh;
-  padding-top: 20px;
+  height: 100vh; /* Sidebar takes full viewport height */
+  padding: 20px; /* Overall padding for the sidebar content */
   display: flex;
   flex-direction: column;
-  align-items: center;
+  justify-content: space-between; /* Distribute items vertically */
+  position: fixed; /* Locked in place */
+  top: 0; /* Stick to the top */
+  left: 0;
+  z-index: 1000; /* Ensure sidebar is above other content */
+}
+
+/* Sidebar Brand/Logo Styling */
+.sidebar-brand {
+    color: white;
+    margin-bottom: 30px; /* Space below the brand */
+    display: flex;
+    align-items: center;
+    justify-content: center; /* Center content horizontally */
+    width: 100%; /* Take full width of sidebar */
+}
+
+/* Sidebar nav links container */
+nav.sidebar .nav-links-container {
+    display: flex;
+    flex-direction: column;
+    width: 100%; /* Take full width of the sidebar's padding area */
+    margin-bottom: auto; /* Pushes content below it to the bottom */
+    align-items: center; /* Center its children (the nav-links) horizontally */
 }
 
 /* Sidebar nav links */
 nav.sidebar a.nav-link {
-  color: white;
-  font-size: 12px;
-  text-align: center;
-  width: 100%;
-  padding: 10px 0;
+  color: rgba(255, 255, 255, 0.7); /* Slightly transparent white for default links */
+  font-size: 0.95rem; /* Adjusted font size for text */
+  text-align: left; /* Keep left aligned for icon and text within the link */
+  padding: 12px 20px; /* Adjusted horizontal padding for the link button itself */
   display: flex;
-  flex-direction: column;
-  align-items: center;
+  align-items: center; /* Align icon and text vertically */
   text-decoration: none;
-  transition: background-color 0.3s ease, color 0.3s ease;
-  border-radius: 10px;
+  transition: background-color 0.3s ease, color 0.3s ease, border-radius 0.3s ease;
+  border-radius: 8px; /* Consistent rounded corners */
   font-weight: 500;
+  margin-bottom: 8px; /* Margin between nav links */
 }
 
-/* Icons */
+/* Icons within nav links */
 nav.sidebar a.nav-link .icon {
-  font-size: 24px;
-  margin-bottom: 4px;
+  font-size: 1.3rem; /* Adjusted icon size */
+  margin-right: 10px; /* Space between icon and text */
+  color: rgba(255, 255, 255, 0.5); /* Slightly faded icon color */
 }
 
 /* Hover effect */
 nav.sidebar a.nav-link:hover {
-  background-color: #463df7;
-  color: #d1c4ff;
-  cursor: pointer;
+  background-color: rgba(255, 255, 255, 0.1); /* Light translucent white for hover */
+  color: white; /* Make text fully white on hover */
+}
+nav.sidebar a.nav-link:hover .icon {
+    color: white; /* Make icon fully white on hover */
 }
 
-/* Active highlight - darker translucent blue */
+/* Active highlight */
 nav.sidebar a.nav-link.active {
-  background-color: rgba(34, 28, 123, 0.7); /* Darker blue with transparency */
-  color: #e0dfff; /* Light lavender for contrast */
-  font-weight: bold;
-  box-shadow: 0 0 8px rgba(34, 28, 123, 0.8);
+  background-color: #4a90e2; /* Solid blue for active state (matching brand icon) */
+  color: white; /* White text for active state */
+  font-weight: 700; /* Bolder font for active state */
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3); /* Stronger shadow */
+  border-radius: 8px; /* Ensure consistency with hover */
+}
+nav.sidebar a.nav-link.active .icon {
+    color: white; /* Ensure active icon is white */
+}
+
+
+/* Bottom Action Button Container */
+.sidebar-bottom-btn-container {
+    width: 100%; /* Take full width of sidebar's padding area */
+    padding-top: 20px; /* Space above the button */
+    display: flex; /* To center the button within this container */
+    justify-content: center; /* To center the button within this container */
+}
+
+/* Styling for the new "New Entry" button at the bottom (now Logout) */
+.sidebar-bottom-btn {
+    width: calc(100% - 30px); /* Adjusted width to account for sidebar-bottom-btn-container padding */
+    padding: 12px 15px;
+    background-color: #4a90e2; /* Light blue, matching theme */
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    display: flex; /* Use flexbox to center icon and text */
+    align-items: center;
+    justify-content: center;
+}
+
+.sidebar-bottom-btn:hover {
+    background-color: #357ABD; /* Slightly darker on hover */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
 /* Main content */
-main.content {
+main {
   flex-grow: 1;
-  padding: 40px;
+  padding: 40px; /* Keeps consistent padding around the content */
   display: flex;
-  justify-content: center;
-  align-items: center;
+  flex-direction: column; /* Ensure content stacks vertically */
+  gap: 1.5rem; /* Use consistent gap for rows as defined in dashboard.html */
+  align-items: stretch; /* Stretch items to fill available width */
+  overflow-y: auto; /* Allow scrolling for the main content area */
+  height: 100%; /* Make main take full height of its container, allowing its flex parent to define total height */
 }
 
 /* Buttons inside insights */
@@ -82,4 +172,140 @@ main.content {
 .btn-group-insights {
   display: flex;
   gap: 40px;
+}
+
+/* Login Page Specific Styles */
+.login-card {
+    background-color: white;
+    border-radius: 15px; /* More rounded corners */
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3); /* More pronounced shadow */
+    display: flex; /* Enable flexbox for inner columns */
+    max-width: 800px; /* Adjusted max-width for the split layout */
+    width: 100%; /* Ensure it takes full available width */
+    overflow: hidden; /* Hide overflowing elements like clouds */
+}
+
+.login-card-left {
+    padding: 3rem; /* Padding for the left (form) section */
+    flex: 1; /* Take equal width */
+    display: flex;
+    flex-direction: column;
+    justify-content: center; /* Center content vertically */
+}
+
+.login-card-right {
+    flex: 1; /* Take equal width */
+    /* Changed gradient to blue */
+    background: linear-gradient(135deg, #4a90e2, #1e50a6);
+    border-radius: 0 15px 15px 0; /* Rounded only on the right side */
+    position: relative; /* For positioning pseudo-elements for clouds */
+    padding: 3rem; /* Padding for the right section */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    overflow: hidden; /* Hide overflowing clouds */
+}
+
+.login-greeting {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #333; /* Darker text for heading */
+}
+
+.login-subtitle {
+    font-size: 1.1rem;
+    color: #666; /* Muted text for subtitle */
+}
+
+.welcome-back-title {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+}
+
+.welcome-back-text {
+    font-size: 0.9rem;
+    line-height: 1.6;
+    opacity: 0.8;
+}
+
+/* Custom Input Group Styles */
+.input-group-custom {
+    position: relative;
+    margin-bottom: 1.5rem; /* Space between input groups */
+}
+
+.input-group-custom .form-control {
+    border-radius: 8px; /* Rounded input fields */
+    padding: 0.75rem 1rem 0.75rem 2.5rem; /* Left padding for icon */
+    border: 1px solid #e0e0e0; /* Lighter border */
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.08); /* Subtle inner shadow */
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.input-group-custom .form-control:focus {
+    border-color: #4a90e2; /* Highlight focus with blue */
+    box-shadow: 0 0 0 0.25rem rgba(74, 144, 226, 0.25), inset 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.input-icon {
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #888; /* Icon color */
+    font-size: 1rem;
+    z-index: 5; /* Ensure icon is above input */
+}
+
+/* Login Button Styles (matching design) */
+.login-main-btn {
+    /* Changed gradient to blue */
+    background: linear-gradient(135deg, #4a90e2, #2a6edc);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 0.85rem 1.5rem; /* Slightly more padding */
+    font-size: 1.1rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); /* Soft shadow */
+    text-transform: uppercase; /* Uppercase text */
+    letter-spacing: 0.05em; /* Slight letter spacing */
+}
+
+.login-main-btn:hover {
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3); /* More pronounced shadow on hover */
+    transform: translateY(-2px); /* Slight lift effect */
+    /* Changed gradient to blue on hover */
+    background: linear-gradient(135deg, #5a9cf2, #3a7eda);
+}
+
+/* Cloud-like shapes on the right side */
+.login-card-right::before,
+.login-card-right::after {
+    content: '';
+    position: absolute;
+    background-color: rgba(255, 255, 255, 0.1); /* Translucent white for clouds */
+    border-radius: 50%; /* Make them circular */
+    filter: blur(5px); /* Soften the edges */
+    z-index: 1; /* Behind text content */
+}
+
+.login-card-right::before {
+    width: 250px;
+    height: 250px;
+    top: -50px;
+    left: -80px;
+    transform: rotate(20deg);
+}
+
+.login-card-right::after {
+    width: 200px;
+    height: 200px;
+    bottom: -60px;
+    right: -50px;
+    transform: rotate(-30deg);
 }
