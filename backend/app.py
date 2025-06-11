@@ -115,6 +115,21 @@ def sales_top():
     top_products = fetch_top_products()
     return jsonify(top_products)
 
+@app.route('/api/tiktok/reach_summary')
+def tiktok_reach_summary():
+    """API endpoint to get the total reach (views) for TikTok data."""
+    total_views = fetch_summary("tiktokdata", "views")
+    return jsonify({"total_tiktok_reach": total_views})
+
+@app.route('/api/tiktok/engagement_summary')
+def tiktok_engagement_summary():
+    """API endpoint to get the total engagement (likes + comments + shares) for TikTok data."""
+    total_likes = fetch_summary("tiktokdata", "likes")
+    total_comments = fetch_summary("tiktokdata", "comments")
+    total_shares = fetch_summary("tiktokdata", "shares")
+    total_engagement = (total_likes or 0) + (total_comments or 0) + (total_shares or 0)
+    return jsonify({"total_tiktok_engagement": total_engagement})
+
 # Initialize Firebase Admin SDK
 # IMPORTANT: Ensure 'serviceAccountKey.json' path is correct for your environment.
 try:
@@ -226,7 +241,8 @@ def upload_data():
     """
     Handles file uploads for Facebook or TikTok data.
     Supports CSV, Excel (.xlsx, .xls), and JSON file formats.
-    Dynamically generates 'post_id' or 'video_id' if not present.
+    Dynamically generates 'post_id' for Facebook if not present.
+    Aggregates TikTok data by date to match the 'date' primary key.
     """
     try:
         app_name = request.form.get("app")
@@ -251,7 +267,7 @@ def upload_data():
                 df = pd.read_excel(io.BytesIO(file_content))
             except Exception as e:
                 return jsonify({"message": f"Error reading Excel file: {str(e)}. "
-                                           "Ensure 'openpyxl' and 'xlrd' libraries are installed."}), 400
+                                         "Ensure 'openpyxl' and 'xlrd' libraries are installed."}), 400
         elif file.filename.lower().endswith('.json'):
             try:
                 # Use StringIO for text-based JSON files, decoding content
@@ -259,7 +275,7 @@ def upload_data():
                 df = pd.read_json(io.StringIO(file_content.decode("utf-8")))
             except Exception as e:
                 return jsonify({"message": f"Error reading JSON file: {str(e)}. "
-                                           "Ensure JSON is a flat structure (list of records/objects)."}), 400
+                                         "Ensure JSON is a flat structure (list of records/objects)."}), 400
         else:
             return jsonify({"message": "Unsupported file type. Only CSV, Excel (.xlsx, .xls), and JSON files are supported."}), 400
 
@@ -280,66 +296,59 @@ def upload_data():
             df['date'] = df['date'].astype(str)
         except Exception as e:
             return jsonify({"message": f"Error parsing 'date' column: {str(e)}. "
-                                       "Please ensure dates are in a recognizable format (e.g.,YYYY-MM-DD)."}), 400
+                                     "Please ensure dates are in a recognizable format (e.g.,YYYY-MM-DD)."}), 400
 
-        # --- DYNAMIC ID GENERATION AND DEDUPLICATION LOGIC ---
-        # Initialize the subset of columns to use for deduplication.
-        # This will be used by Pandas to ensure uniqueness within the uploaded batch.
-        deduplication_subset = ['date']
-        
         table_name = None
-        required_columns = set() # This set will store all required columns, including generated ones
+        required_columns = set()
 
         if app_name.lower() == "facebook":
             table_name = "facebookdata"
-            # Base required columns for Facebook
             required_columns = {'date', 'likes', 'comments', 'shares', 'reach'}
-            
+
             # Check for existing post_id or post_url, otherwise generate
             if 'post_id' in df.columns:
-                deduplication_subset.append('post_id')
                 required_columns.add('post_id')
             elif 'post_url' in df.columns:
-                deduplication_subset.append('post_url')
                 required_columns.add('post_url')
             else:
                 # If no unique post identifier exists, generate one
-                # Ensure your Supabase table has a 'post_id' column (e.g., as TEXT or UUID)
                 df['post_id'] = [str(uuid.uuid4()) for _ in range(len(df))]
-                deduplication_subset.append('post_id')
                 required_columns.add('post_id') # Add it to required columns as it's now present
+            
+            # For Facebook, deduplicate based on date and post_id/url if multiple entries in batch
+            deduplication_subset = ['date']
+            if 'post_id' in df.columns:
+                deduplication_subset.append('post_id')
+            elif 'post_url' in df.columns:
+                deduplication_subset.append('post_url')
+            df.drop_duplicates(subset=deduplication_subset, keep='last', inplace=True)
+
 
         elif app_name.lower() == "tiktok":
             table_name = "tiktokdata"
-            # Base required columns for TikTok
-            required_columns = {'date', 'views', 'likes', 'comments', 'shares', 'followers'}
+            # Required columns for TikTok based on your provided schema (excluding commented parts)
+            required_columns = {'date', 'views', 'likes', 'comments', 'shares'}
 
-            # Check for existing video_id or video_url, otherwise generate
-            if 'video_id' in df.columns:
-                deduplication_subset.append('video_id')
-                required_columns.add('video_id')
-            elif 'video_url' in df.columns:
-                deduplication_subset.append('video_url')
-                required_columns.add('video_url')
-            else:
-                # If no unique video identifier exists, generate one
-                # Ensure your Supabase table has a 'video_id' column (e.g., as TEXT or UUID)
-                df['video_id'] = [str(uuid.uuid4()) for _ in range(len(df))]
-                deduplication_subset.append('video_id')
-                required_columns.add('video_id') # Add it to required columns as it's now present
+            # --- AGGREGATE TIKTOK DATA BY DATE ---
+            # Since 'date' is the PRIMARY KEY in tiktokdata, ensure only one entry per date.
+            # If the uploaded file contains multiple entries for the same date, sum them up.
+            df = df.groupby('date').agg(
+                views=('views', 'sum'),
+                likes=('likes', 'sum'),
+                comments=('comments', 'sum'),
+                shares=('shares', 'sum')
+            ).reset_index() # Reset index to make 'date' a regular column again
+
+            # Ensure all required columns are still present after aggregation
+            for col in ['views', 'likes', 'comments', 'shares']:
+                if col not in df.columns:
+                    df[col] = 0 # Add missing aggregated columns with default 0
+
         else:
             return jsonify({"message": f"Unsupported app name provided: '{app_name}'. "
-                                       "Please select 'Facebook' or 'TikTok'."}), 400
-
-        # Perform deduplication based on the determined subset.
-        # This resolves the "ON CONFLICT DO UPDATE command cannot affect row a second time" error
-        # by ensuring unique entries in the batch. 'keep="last"' retains the last occurrence
-        # if multiple entries share the same key(s) in the uploaded file.
-        df.drop_duplicates(subset=deduplication_subset, keep='last', inplace=True)
-
+                                     "Please select 'Facebook' or 'TikTok'."}), 400
 
         # Validate that all required columns are present in the processed DataFrame
-        # Check against the potentially updated required_columns set
         if not required_columns.issubset(df.columns):
             missing_columns = list(required_columns - set(df.columns))
             return jsonify({
@@ -347,8 +356,11 @@ def upload_data():
                            f"Expected: {sorted(list(required_columns))}. Missing: {sorted(missing_columns)}."
             }), 400
             
+        # Select only the relevant columns for the target Supabase table
+        df_to_upload = df[list(required_columns)]
+
         # Convert DataFrame records to a list of dictionaries, suitable for Supabase insertion
-        records = df.to_dict(orient='records')
+        records = df_to_upload.to_dict(orient='records')
 
         # Construct Supabase API URL for the target table
         url = f"{SUPABASE_URL}/rest/v1/{table_name}"

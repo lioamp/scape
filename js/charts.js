@@ -8,8 +8,9 @@ function getMonthAbbreviation(dateStr) {
 /**
  * Merges two arrays of data, summing common date entries and including unique ones.
  * Assumes data objects have a 'date' property and numerical 'reach', 'engagement', 'sales' properties.
- * @param {Array<Object>} data1 - First array of data.
- * @param {Array<Object>} data2 - Second array of data.
+ * This function expects already normalized data (i.e., 'reach', 'engagement', 'sales' keys are present).
+ * @param {Array<Object>} data1 - First array of normalized data.
+ * @param {Array<Object>} data2 - Second array of normalized data.
  * @returns {Array<Object>} Merged and sorted data.
  */
 function mergeData(data1, data2) {
@@ -17,35 +18,35 @@ function mergeData(data1, data2) {
 
     // Process data1
     data1.forEach(item => {
-        const date = item.date || item.Date;
+        const date = item.date; // Expecting 'date' as it's normalized
         if (date) {
             mergedMap.set(date, {
                 date: date,
-                reach: (item.reach ?? item.Reach ?? 0),
-                engagement: (item.engagement ?? item.Engagement ?? 0),
-                sales: (item.sales ?? item.Sales ?? 0)
+                reach: (item.reach ?? 0),
+                engagement: (item.engagement ?? 0),
+                sales: (item.sales ?? 0)
             });
         }
     });
 
     // Process data2, merging with existing or adding new
     data2.forEach(item => {
-        const date = item.date || item.Date;
+        const date = item.date; // Expecting 'date' as it's normalized
         if (date) {
             if (mergedMap.has(date)) {
                 const existing = mergedMap.get(date);
                 mergedMap.set(date, {
                     date: date,
-                    reach: existing.reach + (item.reach ?? item.Reach ?? 0),
-                    engagement: existing.engagement + (item.engagement ?? item.Engagement ?? 0),
-                    sales: existing.sales + (item.sales ?? item.Sales ?? 0)
+                    reach: existing.reach + (item.reach ?? 0),
+                    engagement: existing.engagement + (item.engagement ?? 0),
+                    sales: existing.sales + (item.sales ?? 0)
                 });
             } else {
                 mergedMap.set(date, {
                     date: date,
-                    reach: (item.reach ?? item.Reach ?? 0),
-                    engagement: (item.engagement ?? item.Engagement ?? 0),
-                    sales: (item.sales ?? item.Sales ?? 0)
+                    reach: (item.reach ?? 0),
+                    engagement: (item.engagement ?? 0),
+                    sales: (item.sales ?? 0)
                 });
             }
         }
@@ -59,12 +60,14 @@ function mergeData(data1, data2) {
 }
 
 /**
- * Fetches platform-specific data (TikTok, Facebook, or both) from the backend API.
+ * Fetches platform-specific data (TikTok, Facebook, or both) from the backend API
+ * and normalizes it to have consistent 'reach', 'engagement', and 'sales' keys.
  * @param {string} platform - The platform to fetch data for ('tiktok', 'facebook', or 'all').
  * @returns {Promise<Object|null>} An object containing labels, reachData, engagementData, salesData, and rawData, or null if an error occurs.
  */
 async function fetchPlatformData(platform) {
-    let rawData = [];
+    let normalizedData = []; // To hold data with consistent 'reach', 'engagement', 'sales' keys
+
     try {
         if (platform === 'all') {
             console.log("Fetching data for All Platforms...");
@@ -73,39 +76,64 @@ async function fetchPlatformData(platform) {
                 fetch('http://127.0.0.1:5000/api/facebookdata')
             ]);
 
-            const tiktokData = tiktokResponse.ok ? await tiktokResponse.json() : [];
-            const facebookData = facebookResponse.ok ? await facebookResponse.json() : [];
+            let tiktokRawData = tiktokResponse.ok ? await tiktokResponse.json() : [];
+            let facebookRawData = facebookResponse.ok ? await facebookResponse.json() : [];
 
-            console.log("Raw TikTok Data:", tiktokData); // Added console log
-            console.log("Raw Facebook Data:", facebookData); // Added console log
+            // Normalize TikTok data: map 'views' to 'reach', sum 'likes', 'comments', 'shares' to 'engagement'
+            const normalizedTikTok = tiktokRawData.map(item => ({
+                date: item.date,
+                reach: item.views ?? 0,
+                engagement: (item.likes ?? 0) + (item.comments ?? 0) + (item.shares ?? 0),
+                sales: 0 // TikTok data typically doesn't have direct sales, set to 0
+            }));
 
-            rawData = mergeData(tiktokData, facebookData);
+            // Normalize Facebook data: map 'reach' from 'reach' and calculate 'engagement'
+            const normalizedFacebook = facebookRawData.map(item => ({
+                date: item.date || item.Date,
+                reach: item.reach ?? item.Reach ?? 0,
+                engagement: (item.likes ?? 0) + (item.comments ?? 0) + (item.shares ?? 0), // Calculate engagement for Facebook
+                sales: item.sales ?? item.Sales ?? 0
+            }));
+
+            normalizedData = mergeData(normalizedTikTok, normalizedFacebook);
 
         } else if (platform === 'tiktok') {
             console.log("Fetching data for TikTok...");
             const response = await fetch('http://127.0.0.1:5000/api/tiktokdata');
             if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
-            rawData = await response.json();
+            let rawData = await response.json();
+            normalizedData = rawData.map(item => ({
+                date: item.date,
+                reach: item.views ?? 0, // Map views to reach for TikTok
+                engagement: (item.likes ?? 0) + (item.comments ?? 0) + (item.shares ?? 0), // Sum for engagement
+                sales: 0 // TikTok data typically doesn't have direct sales, set to 0
+            }));
 
         } else if (platform === 'facebook') {
             console.log("Fetching data for Facebook...");
             const response = await fetch('http://127.0.0.1:5000/api/facebookdata');
             if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
-            rawData = await response.json();
+            let rawData = await response.json();
+            normalizedData = rawData.map(item => ({
+                date: item.date || item.Date,
+                reach: item.reach ?? item.Reach ?? 0,
+                engagement: (item.likes ?? 0) + (item.comments ?? 0) + (item.shares ?? 0), // Calculate engagement for Facebook
+                sales: item.sales ?? item.Sales ?? 0
+            }));
         } else {
             console.warn("Invalid platform selected:", platform);
             return null;
         }
 
-        console.log(`Processed ${platform} API data:`, rawData); // Renamed log for clarity
+        console.log(`Normalized ${platform} data for charts:`, normalizedData);
 
-        // Map raw data to chart-friendly formats, handling potential case variations in keys
-        const labels = rawData.map(row => getMonthAbbreviation(row.date || row.Date));
-        const reachData = rawData.map(row => row.reach ?? row.Reach ?? 0);
-        const engagementData = rawData.map(row => row.engagement ?? row.Engagement ?? 0);
-        const salesData = rawData.map(row => row.sales ?? row.Sales ?? 0);
+        // Map normalized data to chart-friendly formats
+        const labels = normalizedData.map(row => getMonthAbbreviation(row.date));
+        const reachData = normalizedData.map(row => row.reach);
+        const engagementData = normalizedData.map(row => row.engagement);
+        const salesData = normalizedData.map(row => row.sales);
 
-        return { labels, reachData, engagementData, salesData, rawData: rawData };
+        return { labels, reachData, engagementData, salesData, rawData: normalizedData };
     } catch (error) {
         console.error(`Error fetching ${platform} data:`, error);
         console.log(`Failed to load ${platform} data. Please check the server connection and data source.`);
@@ -321,7 +349,7 @@ async function renderCharts(platform = 'all') { // Default to 'all'
         options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
     });
 
-    // Update summary totals in the small cards
+    // Update summary totals in the small cards (this function is in your Chart.js utility file)
     updateSummaryTotals(reachData, engagementData, salesData);
 
     // Fetch and render top performers chart (this chart is NOT platform-specific, so it's always fetched and rendered regardless of the platform filter)
@@ -365,14 +393,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Add event listener for the platform filter dropdown
     const platformFilterDropdown = document.getElementById('platformFilterDropdown');
-    const dropdownItems = platformFilterDropdown.nextElementSibling.querySelectorAll('.dropdown-item');
+    // Ensure platformFilterDropdown actually exists before trying to access its nextSibling
+    if (platformFilterDropdown) {
+        const dropdownMenu = platformFilterDropdown.nextElementSibling;
+        if (dropdownMenu) {
+            const dropdownItems = dropdownMenu.querySelectorAll('.dropdown-item');
 
-    dropdownItems.forEach(item => {
-        item.addEventListener('click', function(event) {
-            event.preventDefault(); // Prevent default link behavior
-            const selectedPlatform = this.dataset.platform;
-            platformFilterDropdown.textContent = `Platform: ${this.textContent}`; // Update button text
-            renderCharts(selectedPlatform); // Re-render charts with the selected platform
-        });
-    });
+            dropdownItems.forEach(item => {
+                item.addEventListener('click', function(event) {
+                    event.preventDefault(); // Prevent default link behavior
+                    const selectedPlatform = this.dataset.platform;
+                    platformFilterDropdown.textContent = `Platform: ${this.textContent}`; // Update button text
+                    renderCharts(selectedPlatform); // Re-render charts with the selected platform
+                });
+            });
+        } else {
+            console.warn("Dropdown menu not found. Check HTML structure for platformFilterDropdown.");
+        }
+    } else {
+        console.warn("Platform filter dropdown button not found. Check HTML structure.");
+    }
 });
