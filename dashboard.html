@@ -10,6 +10,7 @@
     />
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <link rel="stylesheet" href="style/style.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="js/charts.js" type="module"></script>
   </head>
@@ -85,7 +86,7 @@
       </div>
 
       <main
-        class="flex-grow-1 p-4 d-flex flex-column gap-3"
+        class="flex-grow-1 p-4 d-flex flex-column gap-3 container-fluid"
         style="background-color: #fefef6"
       >
       <!-- Platform Filter -->
@@ -114,64 +115,66 @@
           </div>
         </div>
 
-        <div class="row g-3">
-          <!-- Reach Table -->
-          <div class="col">
-            <div class="card position-relative">
-              <div class="card-header fw-bold">Reach</div>
-              <canvas
-                id="reachChart"
-                style="max-height: 250px; width: 100%"
-              ></canvas>
-              
+        <!-- Row for Summary Table -->
+        <div class="row g-3 mb-3">
+            <div class="col-12"> <!-- Full width for Summary table -->
+                <div class="card position-relative">
+                    <div class="card-header fw-bold">Summary Totals</div>
+                    <div class="d-flex justify-content-around p-3">
+                        <div class="small-card text-center p-3 border rounded-3 shadow-sm bg-light">
+                            <div class="text-muted fw-semibold">Total Reach</div>
+                            <div id="summaryTotalReach" class="small-card-value text-center fw-bold fs-4 text-indigo-700">Loading...</div>
+                        </div>
+                        <div class="small-card text-center p-3 border rounded-3 shadow-sm bg-light">
+                            <div class="text-muted fw-semibold">Total Engagement</div>
+                            <div id="summaryTotalEngagement" class="small-card-value text-center fw-bold fs-4 text-indigo-700">Loading...</div>
+                        </div>
+                        <div class="small-card text-center p-3 border rounded-3 shadow-sm bg-light">
+                            <div class="text-muted fw-semibold">Total Sales</div>
+                            <div id="summaryTotalSales" class="small-card-value text-center fw-bold fs-4 text-indigo-700">Loading...</div>
+                        </div>
+                    </div>
+                </div>
             </div>
-          </div>
-          
-          <!-- Engagement Table -->
-          <div class="col">
-            <div class="card position-relative">
-              <div class="card-header fw-bold">Engagement</div>
-              <canvas
-                id="engagementChart"
-                style="max-height: 250px; width: 100%"
-              ></canvas>
-              
-            </div>
-          </div>
-          
-          <!-- Summary Table -->
-          <div class="col">
-            <div class="card position-relative">
-              <div class="card-header fw-bold">&nbsp;</div>
-              
-              <div class="d-flex justify-content-between mt-3">
-                <div class="small-card text-center p-2">Reach</div>
-                <div class="small-card text-center p-2">Engagement</div>
-                <div class="small-card text-center p-2">Sales</div>
-              </div>
-            </div>
-          </div>
         </div>
 
-        <!-- Sales Table -->
+        <!-- Row for Reach Chart -->
+        <div class="row g-3 mb-3">
+            <div class="col-12"> <!-- Full width for Reach chart -->
+                <div class="card position-relative">
+                    <div class="card-header fw-bold">Reach</div>
+                    <canvas id="reachChart" style="max-height: 350px; width: 100%"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row for Engagement Chart -->
+        <div class="row g-3 mb-3">
+            <div class="col-12"> <!-- Full width for Engagement chart -->
+                <div class="card position-relative">
+                    <div class="card-header fw-bold">Engagement</div>
+                    <canvas id="engagementChart" style="max-height: 350px; width: 100%"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sales and Top Performers Table -->
         <div class="row g-3">
-          <div class="col-8">
+          <div class="col-md-8">
             <div class="card position-relative h-100">
               <div class="card-header fw-bold">Sales</div>
               <canvas
                 id="salesChart"
                 style="max-height: 350px; width: 100%"
               ></canvas>
-              
             </div>
           </div>
 
           <!-- Performance Table -->
-          <div class="col-4">
+          <div class="col-md-4">
             <div class="card position-relative h-100">
                 <div class="card-header fw-bold">Top Performers</div>
                 <canvas id="topPerformersChart" style="max-height: 350px; width: 100%;"></canvas>
-                
             </div>
           </div>
         </div>
