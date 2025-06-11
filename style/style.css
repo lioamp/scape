@@ -33,7 +33,8 @@ body.login-page-body {
 
 nav.sidebar {
   width: 250px; /* Increased sidebar width */
-  background-color: #1a2035; /* Darker background color for a modern feel */
+  /* Changed background to a deeper blue-purple gradient */
+  background: linear-gradient(180deg, #302066, #1A1230); /* Blue-purple gradient for sidebar */
   color: white;
   height: 100vh; /* Sidebar takes full viewport height */
   padding: 20px; /* Overall padding for the sidebar content */
@@ -48,7 +49,7 @@ nav.sidebar {
 
 /* Sidebar Brand/Logo Styling */
 .sidebar-brand {
-    color: white;
+    color: white; /* Ensure text is white on blue background */
     margin-bottom: 30px; /* Space below the brand */
     display: flex;
     align-items: center;
@@ -67,7 +68,7 @@ nav.sidebar .nav-links-container {
 
 /* Sidebar nav links */
 nav.sidebar a.nav-link {
-  color: rgba(255, 255, 255, 0.7); /* Slightly transparent white for default links */
+  color: rgba(255, 255, 255, 0.8); /* Slightly transparent white for default links (more opaque) */
   font-size: 0.95rem; /* Adjusted font size for text */
   text-align: left; /* Keep left aligned for icon and text within the link */
   padding: 12px 20px; /* Adjusted horizontal padding for the link button itself */
@@ -84,12 +85,12 @@ nav.sidebar a.nav-link {
 nav.sidebar a.nav-link .icon {
   font-size: 1.3rem; /* Adjusted icon size */
   margin-right: 10px; /* Space between icon and text */
-  color: rgba(255, 255, 255, 0.5); /* Slightly faded icon color */
+  color: rgba(255, 255, 255, 0.8); /* Ensure icons are clear */
 }
 
 /* Hover effect */
 nav.sidebar a.nav-link:hover {
-  background-color: rgba(255, 255, 255, 0.1); /* Light translucent white for hover */
+  background-color: rgba(255, 255, 255, 0.15); /* Slightly more opaque translucent white for hover */
   color: white; /* Make text fully white on hover */
 }
 nav.sidebar a.nav-link:hover .icon {
@@ -98,7 +99,7 @@ nav.sidebar a.nav-link:hover .icon {
 
 /* Active highlight */
 nav.sidebar a.nav-link.active {
-  background-color: #4a90e2; /* Solid blue for active state (matching brand icon) */
+  background-color: rgba(255, 255, 255, 0.25); /* More prominent translucent background for active state */
   color: white; /* White text for active state */
   font-weight: 700; /* Bolder font for active state */
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3); /* Stronger shadow */
@@ -121,7 +122,8 @@ nav.sidebar a.nav-link.active .icon {
 .sidebar-bottom-btn {
     width: calc(100% - 30px); /* Adjusted width to account for sidebar-bottom-btn-container padding */
     padding: 12px 15px;
-    background-color: #4a90e2; /* Light blue, matching theme */
+    /* Changed gradient to blue-purple */
+    background: linear-gradient(135deg, #7B68EE, #5A4CD1); /* Blue-purple gradient for button */
     color: white;
     border: none;
     border-radius: 8px;
@@ -136,7 +138,8 @@ nav.sidebar a.nav-link.active .icon {
 }
 
 .sidebar-bottom-btn:hover {
-    background-color: #357ABD; /* Slightly darker on hover */
+    /* Changed gradient to blue-purple on hover */
+    background: linear-gradient(135deg, #8A7AEF, #6A5ACD); /* Lighter blue-purple on hover */
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
@@ -195,8 +198,8 @@ main {
 
 .login-card-right {
     flex: 1; /* Take equal width */
-    /* Changed gradient to blue */
-    background: linear-gradient(135deg, #4a90e2, #1e50a6);
+    /* Changed gradient to blue-purple */
+    background: linear-gradient(135deg, #5A4CD1, #302066); /* Blue-purple gradient for login right side */
     border-radius: 0 15px 15px 0; /* Rounded only on the right side */
     position: relative; /* For positioning pseudo-elements for clouds */
     padding: 3rem; /* Padding for the right section */
@@ -246,8 +249,9 @@ main {
 }
 
 .input-group-custom .form-control:focus {
-    border-color: #4a90e2; /* Highlight focus with blue */
-    box-shadow: 0 0 0 0.25rem rgba(74, 144, 226, 0.25), inset 0 1px 3px rgba(0, 0, 0, 0.08);
+    /* Changed focus highlight to blue-purple */
+    border-color: #7B68EE; /* Highlight focus with blue-purple */
+    box-shadow: 0 0 0 0.25rem rgba(123, 104, 238, 0.25), inset 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .input-icon {
@@ -262,8 +266,8 @@ main {
 
 /* Login Button Styles (matching design) */
 .login-main-btn {
-    /* Changed gradient to blue */
-    background: linear-gradient(135deg, #4a90e2, #2a6edc);
+    /* Changed gradient to blue-purple */
+    background: linear-gradient(135deg, #7B68EE, #5A4CD1); /* Blue-purple gradient for button */
     color: white;
     border: none;
     border-radius: 8px;
@@ -279,8 +283,8 @@ main {
 .login-main-btn:hover {
     box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3); /* More pronounced shadow on hover */
     transform: translateY(-2px); /* Slight lift effect */
-    /* Changed gradient to blue on hover */
-    background: linear-gradient(135deg, #5a9cf2, #3a7eda);
+    /* Changed gradient to blue-purple on hover */
+    background: linear-gradient(135deg, #8A7AEF, #6A5ACD); /* Lighter blue-purple on hover */
 }
 
 /* Cloud-like shapes on the right side */

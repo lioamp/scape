@@ -128,7 +128,7 @@ async function fetchPlatformData(platform) {
         console.log(`Normalized ${platform} data for charts:`, normalizedData);
 
         // Map normalized data to chart-friendly formats
-        const labels = normalizedData.map(row => getMonthAbbreviation(row.date));
+        const labels = normalizedData.map(row => row.date); // Keep full date for parsing in adapter
         const reachData = normalizedData.map(row => row.reach);
         const engagementData = normalizedData.map(row => row.engagement);
         const salesData = normalizedData.map(row => row.sales);
@@ -172,33 +172,20 @@ function updateSummaryTotals(reachData, engagementData, salesData) {
     const totalEngagement = engagementData.reduce((a, b) => a + b, 0);
     const totalSales = salesData.reduce((a, b) => a + b, 0);
 
-    const summaryCard = document.querySelector('.row.g-3 > .col:nth-child(3) > .card');
+    const summaryCard = document.querySelector('.row.g-3 > .col-12 > .card'); // Corrected selector for the summary card
     if (!summaryCard) {
         console.warn("Summary card not found.");
         return;
     }
 
-    summaryCard.querySelectorAll('.small-card-value').forEach(el => el.remove());
+    // Update text content of existing elements instead of removing and recreating
+    const reachValueEl = summaryCard.querySelector('#summaryTotalReach');
+    const engagementValueEl = summaryCard.querySelector('#summaryTotalEngagement');
+    const salesValueEl = summaryCard.querySelector('#summaryTotalSales');
 
-    const smallCards = summaryCard.querySelectorAll('.small-card');
-    if (smallCards.length === 3) {
-        const reachValueEl = document.createElement('div');
-        reachValueEl.className = 'small-card-value text-center fw-bold';
-        reachValueEl.textContent = totalReach.toLocaleString();
-        smallCards[0].appendChild(reachValueEl);
-
-        const engagementValueEl = document.createElement('div');
-        engagementValueEl.className = 'small-card-value text-center fw-bold';
-        engagementValueEl.textContent = totalEngagement.toLocaleString();
-        smallCards[1].appendChild(engagementValueEl);
-
-        const salesValueEl = document.createElement('div');
-        salesValueEl.className = 'small-card-value text-center fw-bold';
-        salesValueEl.textContent = totalSales.toLocaleString();
-        smallCards[2].appendChild(salesValueEl);
-    } else {
-        console.warn("Expected 3 small cards in summary, found:", smallCards.length);
-    }
+    if (reachValueEl) reachValueEl.textContent = totalReach.toLocaleString();
+    if (engagementValueEl) engagementValueEl.textContent = totalEngagement.toLocaleString();
+    if (salesValueEl) salesValueEl.textContent = totalSales.toLocaleString();
 }
 
 /**
@@ -222,35 +209,36 @@ function renderTopPerformersChart(performersData) {
             datasets: [{
                 label: 'Sales',
                 data: data,
-                backgroundColor: 'rgba(153, 102, 255, 0.6)',
-                borderColor: 'rgba(153, 102, 255, 1)',
-                borderWidth: 1
+                backgroundColor: 'linear-gradient(135deg, #7B68EE, #5A4CD1)', // Blue-purple gradient
+                borderColor: 'rgba(123, 104, 238, 1)', // Solid color for border
+                borderWidth: 1,
+                borderRadius: 5, // Rounded bars
             }]
         },
         options: {
-            indexAxis: 'y',
+            indexAxis: 'y', // Horizontal bar chart
             responsive: true,
             maintainAspectRatio: false,
-            scales: {
-                x: {
-                    beginAtZero: true,
-                    title: {
-                        display: true,
-                        text: 'Sales'
-                    }
-                },
-                y: {
-                    title: {
-                        display: true,
-                        text: 'Product'
-                    }
-                }
-            },
             plugins: {
                 legend: {
-                    display: false
+                    display: false // No legend for this chart
+                },
+                title: {
+                    display: true,
+                    text: 'Top Performers by Sales',
+                    font: {
+                        size: 16,
+                        family: 'Roboto',
+                        weight: 'bold'
+                    },
+                    color: '#333'
                 },
                 tooltip: {
+                    backgroundColor: 'rgba(30, 30, 30, 0.9)', // Darker tooltip background
+                    titleFont: { family: 'Roboto', weight: 'bold' },
+                    bodyFont: { family: 'Roboto' },
+                    padding: 10,
+                    cornerRadius: 5,
                     callbacks: {
                         label: function(context) {
                             let label = context.dataset.label || '';
@@ -258,14 +246,66 @@ function renderTopPerformersChart(performersData) {
                                 label += ': ';
                             }
                             if (context.parsed.x !== null) {
-                                label += new Intl.NumberFormat('en-US').format(context.parsed.x);
+                                label += new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(context.parsed.x);
                             }
                             return label;
                         }
                     }
                 }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)', // Lighter grid lines
+                        drawBorder: false, // Hide border
+                    },
+                    ticks: {
+                        font: { family: 'Roboto' },
+                        color: '#666'
+                    },
+                    title: {
+                        display: true,
+                        text: 'Total Sales (USD)',
+                        font: { family: 'Roboto', weight: 'bold' },
+                        color: '#333'
+                    }
+                },
+                y: {
+                    grid: {
+                        display: false, // Hide vertical grid lines
+                        drawBorder: false,
+                    },
+                    ticks: {
+                        font: { family: 'Roboto' },
+                        color: '#333'
+                    },
+                    title: {
+                        display: true,
+                        text: 'Product Name',
+                        font: { family: 'Roboto', weight: 'bold' },
+                        color: '#333'
+                    }
+                }
             }
-        }
+        },
+        plugins: [{
+            beforeInit: function(chart) {
+                // Apply gradient to bars
+                const originalDraw = chart.getDatasetMeta(0).controller.draw;
+                chart.getDatasetMeta(0).controller.draw = function() {
+                    originalDraw.apply(this, arguments);
+                    const ctx = chart.ctx;
+                    const gradient = ctx.createLinearGradient(0, 0, chart.width, 0);
+                    gradient.addColorStop(0, '#7B68EE'); // Start color
+                    gradient.addColorStop(1, '#5A4CD1'); // End color
+                    this.get
+                    chart.getDatasetMeta(0).data.forEach(bar => {
+                        bar.options.backgroundColor = gradient;
+                    });
+                };
+            }
+        }]
     });
 }
 
@@ -294,7 +334,81 @@ async function renderCharts(platform = 'all') { // Default to 'all'
 
     const { labels, reachData, engagementData, salesData } = platformData;
 
-    // Render Reach Chart
+    // Common Chart.js options for all charts
+    const commonOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                display: false, // Hide legend by default
+                labels: {
+                    font: { family: 'Roboto' }
+                }
+            },
+            tooltip: {
+                backgroundColor: 'rgba(30, 30, 30, 0.9)', // Darker tooltip background
+                titleFont: { family: 'Roboto', weight: 'bold' },
+                bodyFont: { family: 'Roboto' },
+                padding: 10,
+                cornerRadius: 5,
+            },
+            title: {
+                display: true,
+                font: {
+                    size: 16,
+                    family: 'Roboto',
+                    weight: 'bold'
+                },
+                color: '#333'
+            }
+        },
+        scales: {
+            x: {
+                grid: {
+                    color: 'rgba(0, 0, 0, 0.05)', // Lighter grid lines
+                    drawBorder: false,
+                },
+                ticks: {
+                    font: { family: 'Roboto' },
+                    color: '#666',
+                    callback: function(val, index) {
+                        // Display month abbreviation for x-axis labels
+                        return getMonthAbbreviation(this.getLabelForValue(val));
+                    }
+                },
+                title: {
+                    display: true,
+                    font: { family: 'Roboto', weight: 'bold' },
+                    color: '#333'
+                }
+            },
+            y: {
+                beginAtZero: true,
+                grid: {
+                    color: 'rgba(0, 0, 0, 0.05)', // Lighter grid lines
+                    drawBorder: false,
+                },
+                ticks: {
+                    font: { family: 'Roboto' },
+                    color: '#666',
+                    callback: function(value) {
+                        // Format large numbers for Y-axis
+                        if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
+                        if (value >= 1000) return (value / 1000).toFixed(1) + 'K';
+                        return value;
+                    }
+                },
+                title: {
+                    display: true,
+                    font: { family: 'Roboto', weight: 'bold' },
+                    color: '#333'
+                }
+            }
+        }
+    };
+
+
+    // Render Reach Chart (Bar Chart)
     const reachCtx = document.getElementById('reachChart').getContext('2d');
     if (window.reachChartInstance) window.reachChartInstance.destroy();
     window.reachChartInstance = new Chart(reachCtx, {
@@ -304,15 +418,48 @@ async function renderCharts(platform = 'all') { // Default to 'all'
             datasets: [{
                 label: 'Reach',
                 data: reachData,
-                backgroundColor: 'rgba(54, 162, 235, 0.6)',
-                borderColor: 'rgba(54, 162, 235, 1)',
-                borderWidth: 1
+                backgroundColor: 'rgba(123, 104, 238, 0.7)', // Blue-purple with transparency
+                borderColor: 'rgba(123, 104, 238, 1)', // Solid blue-purple
+                borderWidth: 1,
+                borderRadius: 5, // Rounded bars
             }]
         },
-        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+        options: {
+            ...commonOptions,
+            plugins: {
+                ...commonOptions.plugins,
+                title: {
+                    ...commonOptions.plugins.title,
+                    text: 'Monthly Reach'
+                },
+                tooltip: {
+                    ...commonOptions.plugins.tooltip,
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) { label += ': '; }
+                            if (context.parsed.y !== null) {
+                                label += new Intl.NumberFormat('en-US').format(context.parsed.y);
+                            }
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ...commonOptions.scales.x,
+                    title: { ...commonOptions.scales.x.title, text: 'Month' }
+                },
+                y: {
+                    ...commonOptions.scales.y,
+                    title: { ...commonOptions.scales.y.title, text: 'Total Reach' }
+                }
+            }
+        }
     });
 
-    // Render Engagement Chart
+    // Render Engagement Chart (Line Chart)
     const engagementCtx = document.getElementById('engagementChart').getContext('2d');
     if (window.engagementChartInstance) window.engagementChartInstance.destroy();
     window.engagementChartInstance = new Chart(engagementCtx, {
@@ -322,16 +469,56 @@ async function renderCharts(platform = 'all') { // Default to 'all'
             datasets: [{
                 label: 'Engagement',
                 data: engagementData,
-                fill: false,
-                borderColor: 'rgba(255, 99, 132, 1)',
-                backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                tension: 0.3
+                fill: true, // Fill area under the line
+                backgroundColor: 'rgba(90, 76, 209, 0.2)', // Lighter blue-purple for fill
+                borderColor: 'rgba(90, 76, 209, 1)', // Solid blue-purple for line
+                tension: 0.4, // Smoother line
+                pointBackgroundColor: 'rgba(90, 76, 209, 1)', // Point color
+                pointBorderColor: '#fff', // Point border color
+                pointHoverBackgroundColor: '#fff',
+                pointHoverBorderColor: 'rgba(90, 76, 209, 1)',
+                pointRadius: 5, // Larger points
+                pointHoverRadius: 7,
             }]
         },
-        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+        options: {
+            ...commonOptions,
+            plugins: {
+                ...commonOptions.plugins,
+                title: {
+                    ...commonOptions.plugins.title,
+                    text: 'Monthly Engagement'
+                },
+                tooltip: {
+                    ...commonOptions.plugins.tooltip,
+                    mode: 'index',
+                    intersect: false,
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) { label += ': '; }
+                            if (context.parsed.y !== null) {
+                                label += new Intl.NumberFormat('en-US').format(context.parsed.y);
+                            }
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ...commonOptions.scales.x,
+                    title: { ...commonOptions.scales.x.title, text: 'Month' }
+                },
+                y: {
+                    ...commonOptions.scales.y,
+                    title: { ...commonOptions.scales.y.title, text: 'Total Engagement' }
+                }
+            }
+        }
     });
 
-    // Render Monthly Sales Chart
+    // Render Monthly Sales Chart (Bar Chart)
     const salesCtx = document.getElementById('salesChart').getContext('2d');
     if (window.salesChartInstance) window.salesChartInstance.destroy();
     window.salesChartInstance = new Chart(salesCtx, {
@@ -341,20 +528,54 @@ async function renderCharts(platform = 'all') { // Default to 'all'
             datasets: [{
                 label: 'Sales',
                 data: salesData,
-                backgroundColor: 'rgba(75, 192, 192, 0.6)',
-                borderColor: 'rgba(75, 192, 192, 1)',
-                borderWidth: 1
+                backgroundColor: 'rgba(170, 150, 250, 0.7)', // Lighter blue-purple for sales bars
+                borderColor: 'rgba(170, 150, 250, 1)', // Solid lighter blue-purple
+                borderWidth: 1,
+                borderRadius: 5, // Rounded bars
             }]
         },
-        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+        options: {
+            ...commonOptions,
+            plugins: {
+                ...commonOptions.plugins,
+                title: {
+                    ...commonOptions.plugins.title,
+                    text: 'Monthly Sales'
+                },
+                tooltip: {
+                    ...commonOptions.plugins.tooltip,
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) { label += ': '; }
+                            if (context.parsed.y !== null) {
+                                label += new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(context.parsed.y);
+                            }
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ...commonOptions.scales.x,
+                    title: { ...commonOptions.scales.x.title, text: 'Month' }
+                },
+                y: {
+                    ...commonOptions.scales.y,
+                    title: { ...commonOptions.scales.y.title, text: 'Total Sales (USD)' }
+                }
+            }
+        }
     });
+
 
     // Update summary totals in the small cards (this function is in your Chart.js utility file)
     updateSummaryTotals(reachData, engagementData, salesData);
 
     // Fetch and render top performers chart (this chart is NOT platform-specific, so it's always fetched and rendered regardless of the platform filter)
     const topPerformersData = await fetchTopPerformersData();
-    const topPerformersCard = document.querySelector('.row.g-3:nth-of-type(2) > .col-4 > .card');
+    const topPerformersCard = document.querySelector('.row.g-3 > .col-md-4 > .card'); // Adjusted selector
 
     // Clear any previous "No data" messages or existing chart content
     if (topPerformersCard) {
