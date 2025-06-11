@@ -87,14 +87,13 @@
 
       <main
         class="flex-grow-1 p-4 d-flex flex-column gap-3 container-fluid"
-        style="background-color: #fefef6"
       >
       <!-- Platform Filter -->
         <div class="d-flex justify-content-between align-items-center mb-3">
           <h5 id="welcome-message" class="fw-semibold text-muted mb-0"></h5>
           <div class="d-flex align-items-center gap-3">
             <div class="dropdown">
-              <button class="btn btn-outline-danger dropdown-toggle" type="button" id="platformFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+              <button class="btn dashboard-btn-gradient dropdown-toggle" type="button" id="platformFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                 Platform: All
               </button>
               <ul class="dropdown-menu" aria-labelledby="platformFilterDropdown">
@@ -103,9 +102,9 @@
                 <li><a class="dropdown-item" href="#" data-platform="facebook">Facebook</a></li>
               </ul>
             </div>
-            <div id="upload-section" class="d-none">
+            <div id="upload-section">
               <button
-                class="btn btn-success"
+                class="btn dashboard-btn-gradient"
                 data-bs-toggle="modal"
                 data-bs-target="#uploadModal"
               >
@@ -123,15 +122,15 @@
                     <div class="d-flex justify-content-around p-3">
                         <div class="small-card text-center p-3 border rounded-3 shadow-sm bg-light">
                             <div class="text-muted fw-semibold">Total Reach</div>
-                            <div id="summaryTotalReach" class="small-card-value text-center fw-bold fs-4 text-indigo-700">Loading...</div>
+                            <div id="summaryTotalReach" class="small-card-value text-center fw-bold fs-4">Loading...</div>
                         </div>
                         <div class="small-card text-center p-3 border rounded-3 shadow-sm bg-light">
                             <div class="text-muted fw-semibold">Total Engagement</div>
-                            <div id="summaryTotalEngagement" class="small-card-value text-center fw-bold fs-4 text-indigo-700">Loading...</div>
+                            <div id="summaryTotalEngagement" class="small-card-value text-center fw-bold fs-4">Loading...</div>
                         </div>
                         <div class="small-card text-center p-3 border rounded-3 shadow-sm bg-light">
                             <div class="text-muted fw-semibold">Total Sales</div>
-                            <div id="summaryTotalSales" class="small-card-value text-center fw-bold fs-4 text-indigo-700">Loading...</div>
+                            <div id="summaryTotalSales" class="small-card-value text-center fw-bold fs-4">Loading...</div>
                         </div>
                     </div>
                 </div>
