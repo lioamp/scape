@@ -21,6 +21,8 @@ const auth = getAuth(app);
 
 // Global variable to store current user role
 let currentUserRole = "Other";
+let currentAuthUser = null; // Store the authenticated user object
+let currentUserClaims = null; // Store the user's claims
 
 // Make logout globally callable
 window.logout = () => {
@@ -38,10 +40,51 @@ export async function getCurrentUserRole() {
   return currentUserRole;
 }
 
+/**
+ * Updates the visibility of admin-specific UI elements (User Management link, Upload section)
+ * based on the current user's claims.
+ * This function is called after both authentication state is known and sidebar is loaded.
+ */
+function updateAdminUI() {
+    // Only proceed if we have a user and their claims, and the DOM is ready for element lookup.
+    if (!currentAuthUser || !currentUserClaims) {
+        return;
+    }
+
+    const userLink = document.getElementById("user-management-link");
+    const uploadSection = document.getElementById("upload-section");
+
+    if (userLink) {
+        if (currentUserClaims.admin) {
+            userLink.classList.remove("d-none"); // Show the link
+        } else {
+            userLink.classList.add("d-none"); // Hide the link
+        }
+    } else {
+        console.warn("User management link not found, ensure sidebar.html is loaded.");
+    }
+
+    if (uploadSection) {
+        if (currentUserRole === "Admin" || currentUserRole === "Marketing Team") {
+            uploadSection.classList.remove("d-none"); // Show the upload section
+        } else {
+            uploadSection.classList.add("d-none"); // Hide the upload section
+        }
+    } else {
+        console.warn("Upload section not found.");
+    }
+}
+
+
 // Auth & Role Check
 onAuthStateChanged(auth, async (user) => {
+  currentAuthUser = user; // Store the user object globally
+
   if (!user) {
     window.location.href = "index.html";
+    currentUserRole = "Other"; // Reset role
+    currentUserClaims = null; // Clear claims
+    updateAdminUI(); // Hide UI elements if logged out
     return;
   }
 
@@ -53,36 +96,36 @@ onAuthStateChanged(auth, async (user) => {
 
   try {
     const idTokenResult = await getIdTokenResult(user);
-    const claims = idTokenResult.claims;
+    currentUserClaims = idTokenResult.claims; // Store claims globally
 
-    if (claims.admin === true) {
+    if (currentUserClaims.admin === true) {
       currentUserRole = "Admin";
-    } else if (claims.marketingTeam === true) {
+    } else if (currentUserClaims.marketingTeam === true) {
       currentUserRole = "Marketing Team";
-    } else if (claims.socialMediaManager === true) {
+    } else if (currentUserClaims.socialMediaManager === true) {
       currentUserRole = "Social Media Manager";
     } else {
       currentUserRole = "Other";
     }
 
-    const userLink = document.getElementById("user-management-link");
-    if (claims.admin && userLink) {
-      userLink.classList.remove("d-none");
-    } else if (userLink) {
-      userLink.classList.add("d-none");
-    }
-
-    // Show upload button only for Admin and Marketing Team
-    const uploadSection = document.getElementById("upload-section");
-    if (uploadSection) {
-      if (currentUserRole === "Admin" || currentUserRole === "Marketing Team") {
-        uploadSection.classList.remove("d-none");
-      } else {
-        uploadSection.classList.add("d-none");
-      }
-    }
+    // After auth state and claims are determined, try to update UI
+    // This will handle cases where auth resolves before sidebar loads.
+    updateAdminUI();
 
   } catch (error) {
     console.error("Error retrieving role claims:", error);
+    currentUserRole = "Other"; // Default role on error
+    currentUserClaims = null; // Clear claims on error
+    updateAdminUI(); // Ensure UI is hidden if claims fail
   }
+});
+
+// Listen for the custom event dispatched by loadSidebar.js
+// This ensures that `updateAdminUI` is called once the sidebar elements are in the DOM.
+document.addEventListener('sidebarLoaded', () => {
+    // If auth state has already been determined, update UI immediately.
+    // Otherwise, `onAuthStateChanged` will eventually call updateAdminUI.
+    if (currentAuthUser) {
+        updateAdminUI();
+    }
 });

@@ -1,8 +1,9 @@
-// Utility to convert date string (YYYY-MM-DD) to month abbreviation
-function getMonthAbbreviation(dateStr) {
+// Utility to convert date string (YYYY-MM-DD) to month abbreviation and year
+// e.g., "2023-11-15" becomes "Nov 2023"
+function getMonthYearAbbreviation(dateStr) {
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const date = new Date(dateStr);
-    return months[date.getMonth()];
+    return `${months[date.getMonth()]} ${date.getFullYear()}`;
 }
 
 /**
@@ -16,7 +17,7 @@ function getMonthAbbreviation(dateStr) {
 function mergeData(data1, data2) {
     const mergedMap = new Map();
 
-    // Process data1
+    // Process data1: Add items to map, using date as key.
     data1.forEach(item => {
         const date = item.date; // Expecting 'date' as it's normalized
         if (date) {
@@ -29,7 +30,7 @@ function mergeData(data1, data2) {
         }
     });
 
-    // Process data2, merging with existing or adding new
+    // Process data2: Merge with existing entries or add new ones.
     data2.forEach(item => {
         const date = item.date; // Expecting 'date' as it's normalized
         if (date) {
@@ -52,18 +53,109 @@ function mergeData(data1, data2) {
         }
     });
 
-    // Convert map back to array and sort by date
+    // Convert map back to array and sort by date for chronological order.
     const mergedArray = Array.from(mergedMap.values());
     mergedArray.sort((a, b) => new Date(a.date) - new Date(b.date));
-    console.log("Merged Data:", mergedArray); // Added console log for merged data
+    console.log("Merged Data:", mergedArray);
     return mergedArray;
 }
 
 /**
+ * Filters and aggregates data by month and year based on the selected time range.
+ * This ensures that x-axis labels are unique (e.g., "Nov 2023" vs. "Nov 2024")
+ * and data is summed for each month.
+ * @param {Array<Object>} data - The normalized data array, typically daily.
+ * @param {string} timeRange - The time range to filter ('last3months', 'last6months', 'lastYear', 'allTime').
+ * @returns {Object} An object with aggregated labels, reachData, engagementData, and salesData.
+ */
+function filterAndAggregateData(data, timeRange) {
+    let filteredData = [];
+    const now = new Date();
+    let startDate;
+
+    // Determine the start date for filtering based on timeRange
+    switch (timeRange) {
+        case 'last3months':
+            // Set startDate to the beginning of the month, 3 months ago from current month
+            startDate = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+            break;
+        case 'last6months':
+            // Set startDate to the beginning of the month, 6 months ago from current month
+            startDate = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+            break;
+        case 'lastYear':
+            // Set startDate to one year ago from the current date.
+            // This is then used to filter daily data, which is then aggregated by month.
+            startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+            break;
+        case 'allTime':
+        default:
+            startDate = null; // No date filtering, include all data
+            break;
+    }
+
+    // Apply date filtering if a startDate is defined
+    if (startDate) {
+        filteredData = data.filter(item => {
+            const itemDate = new Date(item.date);
+            return itemDate >= startDate;
+        });
+    } else {
+        filteredData = [...data]; // If 'allTime', use a copy of the original data
+    }
+
+    // Aggregate filtered data by month and year
+    // The map key will be "YYYY-MM" to ensure unique month-year combinations
+    const monthlyAggregatedData = new Map();
+
+    filteredData.forEach(item => {
+        const itemDate = new Date(item.date);
+        const yearMonthKey = `${itemDate.getFullYear()}-${String(itemDate.getMonth() + 1).padStart(2, '0')}`;
+
+        if (!monthlyAggregatedData.has(yearMonthKey)) {
+            monthlyAggregatedData.set(yearMonthKey, {
+                reach: 0,
+                engagement: 0,
+                sales: 0
+            });
+        }
+        const currentMonthData = monthlyAggregatedData.get(yearMonthKey);
+        currentMonthData.reach += item.reach;
+        currentMonthData.engagement += item.engagement;
+        currentMonthData.sales += item.sales;
+    });
+
+    // Convert the aggregated map to an array and sort it by month and year
+    const sortedAggregatedData = Array.from(monthlyAggregatedData.entries())
+        .map(([key, value]) => ({ dateKey: key, ...value }))
+        .sort((a, b) => {
+            // Compare by year, then by month
+            const [yearA, monthA] = a.dateKey.split('-').map(Number);
+            const [yearB, monthB] = b.dateKey.split('-').map(Number);
+            return new Date(yearA, monthA - 1) - new Date(yearB, monthB - 1);
+        });
+
+    // Prepare labels and datasets for Chart.js
+    const labels = sortedAggregatedData.map(item => {
+        // Construct a dummy date string to get the formatted month and year
+        const [year, month] = item.dateKey.split('-').map(Number);
+        return getMonthYearAbbreviation(`${year}-${String(month).padStart(2, '0')}-01`);
+    });
+    const reachData = sortedAggregatedData.map(item => item.reach);
+    const engagementData = sortedAggregatedData.map(item => item.engagement);
+    const salesData = sortedAggregatedData.map(item => item.sales);
+
+    return { labels, reachData, engagementData, salesData };
+}
+
+
+/**
  * Fetches platform-specific data (TikTok, Facebook, or both) from the backend API
  * and normalizes it to have consistent 'reach', 'engagement', and 'sales' keys.
+ * This function now returns the raw normalized data, which is then filtered and aggregated
+ * by the `filterAndAggregateData` function in `renderCharts`.
  * @param {string} platform - The platform to fetch data for ('tiktok', 'facebook', or 'all').
- * @returns {Promise<Object|null>} An object containing labels, reachData, engagementData, salesData, and rawData, or null if an error occurs.
+ * @returns {Promise<Object|null>} An object containing the raw normalized data, or null if an error occurs.
  */
 async function fetchPlatformData(platform) {
     let normalizedData = []; // To hold data with consistent 'reach', 'engagement', 'sales' keys
@@ -125,15 +217,9 @@ async function fetchPlatformData(platform) {
             return null;
         }
 
-        console.log(`Normalized ${platform} data for charts:`, normalizedData);
+        console.log(`Normalized ${platform} raw data:`, normalizedData);
 
-        // Map normalized data to chart-friendly formats
-        const labels = normalizedData.map(row => row.date); // Keep full date for parsing in adapter
-        const reachData = normalizedData.map(row => row.reach);
-        const engagementData = normalizedData.map(row => row.engagement);
-        const salesData = normalizedData.map(row => row.sales);
-
-        return { labels, reachData, engagementData, salesData, rawData: normalizedData };
+        return { rawData: normalizedData }; // Return rawData for further processing
     } catch (error) {
         console.error(`Error fetching ${platform} data:`, error);
         console.log(`Failed to load ${platform} data. Please check the server connection and data source.`);
@@ -172,13 +258,13 @@ function updateSummaryTotals(reachData, engagementData, salesData) {
     const totalEngagement = engagementData.reduce((a, b) => a + b, 0);
     const totalSales = salesData.reduce((a, b) => a + b, 0);
 
-    const summaryCard = document.querySelector('.row.g-3 > .col-12 > .card'); // Corrected selector for the summary card
+    const summaryCard = document.querySelector('.row.g-3 > .col-12 > .card');
     if (!summaryCard) {
         console.warn("Summary card not found.");
         return;
     }
 
-    // Update text content of existing elements instead of removing and recreating
+    // Update text content of existing elements
     const reachValueEl = summaryCard.querySelector('#summaryTotalReach');
     const engagementValueEl = summaryCard.querySelector('#summaryTotalEngagement');
     const salesValueEl = summaryCard.querySelector('#summaryTotalSales');
@@ -299,7 +385,8 @@ function renderTopPerformersChart(performersData) {
                     const gradient = ctx.createLinearGradient(0, 0, chart.width, 0);
                     gradient.addColorStop(0, '#7B68EE'); // Start color
                     gradient.addColorStop(1, '#5A4CD1'); // End color
-                    this.get
+                    // Ensure 'this.get' was a typo and not needed for gradient application directly to bar options.
+                    // If 'this.get' was meant to be a method call, it needs to be corrected.
                     chart.getDatasetMeta(0).data.forEach(bar => {
                         bar.options.backgroundColor = gradient;
                     });
@@ -310,29 +397,32 @@ function renderTopPerformersChart(performersData) {
 }
 
 /**
- * Main function to render all charts on the dashboard based on the selected platform.
+ * Main function to render all charts on the dashboard based on the selected platform and time range.
  * @param {string} platform - The platform to display data for ('tiktok', 'facebook', or 'all').
+ * @param {string} timeRange - The time range to filter data ('last3months', 'last6months', 'lastYear', 'allTime').
  */
-async function renderCharts(platform = 'all') { // Default to 'all'
-    console.log(`Rendering charts for platform: ${platform}`); // Log selected platform
+async function renderCharts(platform = 'all', timeRange = 'lastYear') { // Default to 'all' platforms and 'lastYear' time range
+    console.log(`Rendering charts for platform: ${platform}, time range: ${timeRange}`);
 
-    // Fetch platform-specific data for Reach, Engagement, and Monthly Sales charts
+    // Fetch platform-specific data. This now returns raw data.
     const platformData = await fetchPlatformData(platform);
-    if (!platformData) {
-        console.error("Could not fetch platform data, skipping chart rendering.");
-        // Optionally, display a message on the charts if no data is available
+    if (!platformData || !platformData.rawData) {
+        console.error("Could not fetch platform raw data, skipping chart rendering.");
+        // Clear canvases and display a message if no data is available
         ['reachChart', 'engagementChart', 'salesChart'].forEach(chartId => {
             const canvas = document.getElementById(chartId);
             if (canvas) {
                 const ctx = canvas.getContext('2d');
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                // You could draw "No data available" text here if desired
+                // Optional: Draw "No data available" text here
             }
         });
         return;
     }
 
-    const { labels, reachData, engagementData, salesData } = platformData;
+    // Filter and aggregate the raw data based on the selected time range.
+    // This is where daily data is grouped into unique month-year entries.
+    const { labels, reachData, engagementData, salesData } = filterAndAggregateData(platformData.rawData, timeRange);
 
     // Common Chart.js options for all charts
     const commonOptions = {
@@ -371,10 +461,8 @@ async function renderCharts(platform = 'all') { // Default to 'all'
                 ticks: {
                     font: { family: 'Roboto' },
                     color: '#666',
-                    callback: function(val, index) {
-                        // Display month abbreviation for x-axis labels
-                        return getMonthAbbreviation(this.getLabelForValue(val));
-                    }
+                    // Labels are already "MMM YYYY", so no custom callback is needed to format them further.
+                    // This allows Chart.js to display the labels directly.
                 },
                 title: {
                     display: true,
@@ -392,7 +480,7 @@ async function renderCharts(platform = 'all') { // Default to 'all'
                     font: { family: 'Roboto' },
                     color: '#666',
                     callback: function(value) {
-                        // Format large numbers for Y-axis
+                        // Format large numbers for Y-axis (e.g., 1000000 -> 1M)
                         if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
                         if (value >= 1000) return (value / 1000).toFixed(1) + 'K';
                         return value;
@@ -414,14 +502,14 @@ async function renderCharts(platform = 'all') { // Default to 'all'
     window.reachChartInstance = new Chart(reachCtx, {
         type: 'bar',
         data: {
-            labels,
+            labels, // Use aggregated labels
             datasets: [{
                 label: 'Reach',
-                data: reachData,
-                backgroundColor: 'rgba(123, 104, 238, 0.7)', // Blue-purple with transparency
-                borderColor: 'rgba(123, 104, 238, 1)', // Solid blue-purple
+                data: reachData, // Use aggregated data
+                backgroundColor: 'rgba(123, 104, 238, 0.7)',
+                borderColor: 'rgba(123, 104, 238, 1)',
                 borderWidth: 1,
-                borderRadius: 5, // Rounded bars
+                borderRadius: 5,
             }]
         },
         options: {
@@ -449,7 +537,7 @@ async function renderCharts(platform = 'all') { // Default to 'all'
             scales: {
                 x: {
                     ...commonOptions.scales.x,
-                    title: { ...commonOptions.scales.x.title, text: 'Month' }
+                    title: { ...commonOptions.scales.x.title, text: 'Month and Year' } // Updated title
                 },
                 y: {
                     ...commonOptions.scales.y,
@@ -465,19 +553,19 @@ async function renderCharts(platform = 'all') { // Default to 'all'
     window.engagementChartInstance = new Chart(engagementCtx, {
         type: 'line',
         data: {
-            labels,
+            labels, // Use aggregated labels
             datasets: [{
                 label: 'Engagement',
-                data: engagementData,
-                fill: true, // Fill area under the line
-                backgroundColor: 'rgba(90, 76, 209, 0.2)', // Lighter blue-purple for fill
-                borderColor: 'rgba(90, 76, 209, 1)', // Solid blue-purple for line
-                tension: 0.4, // Smoother line
-                pointBackgroundColor: 'rgba(90, 76, 209, 1)', // Point color
-                pointBorderColor: '#fff', // Point border color
+                data: engagementData, // Use aggregated data
+                fill: true,
+                backgroundColor: 'rgba(90, 76, 209, 0.2)',
+                borderColor: 'rgba(90, 76, 209, 1)',
+                tension: 0.4,
+                pointBackgroundColor: 'rgba(90, 76, 209, 1)',
+                pointBorderColor: '#fff',
                 pointHoverBackgroundColor: '#fff',
                 pointHoverBorderColor: 'rgba(90, 76, 209, 1)',
-                pointRadius: 5, // Larger points
+                pointRadius: 5,
                 pointHoverRadius: 7,
             }]
         },
@@ -508,7 +596,7 @@ async function renderCharts(platform = 'all') { // Default to 'all'
             scales: {
                 x: {
                     ...commonOptions.scales.x,
-                    title: { ...commonOptions.scales.x.title, text: 'Month' }
+                    title: { ...commonOptions.scales.x.title, text: 'Month and Year' } // Updated title
                 },
                 y: {
                     ...commonOptions.scales.y,
@@ -524,14 +612,14 @@ async function renderCharts(platform = 'all') { // Default to 'all'
     window.salesChartInstance = new Chart(salesCtx, {
         type: 'bar',
         data: {
-            labels,
+            labels, // Use aggregated labels
             datasets: [{
                 label: 'Sales',
-                data: salesData,
-                backgroundColor: 'rgba(170, 150, 250, 0.7)', // Lighter blue-purple for sales bars
-                borderColor: 'rgba(170, 150, 250, 1)', // Solid lighter blue-purple
+                data: salesData, // Use aggregated data
+                backgroundColor: 'rgba(170, 150, 250, 0.7)',
+                borderColor: 'rgba(170, 150, 250, 1)',
                 borderWidth: 1,
-                borderRadius: 5, // Rounded bars
+                borderRadius: 5,
             }]
         },
         options: {
@@ -559,7 +647,7 @@ async function renderCharts(platform = 'all') { // Default to 'all'
             scales: {
                 x: {
                     ...commonOptions.scales.x,
-                    title: { ...commonOptions.scales.x.title, text: 'Month' }
+                    title: { ...commonOptions.scales.x.title, text: 'Month and Year' } // Updated title
                 },
                 y: {
                     ...commonOptions.scales.y,
@@ -570,12 +658,12 @@ async function renderCharts(platform = 'all') { // Default to 'all'
     });
 
 
-    // Update summary totals in the small cards (this function is in your Chart.js utility file)
+    // Update summary totals in the small cards
     updateSummaryTotals(reachData, engagementData, salesData);
 
-    // Fetch and render top performers chart (this chart is NOT platform-specific, so it's always fetched and rendered regardless of the platform filter)
+    // Fetch and render top performers chart (this chart is NOT platform-specific, so it's always fetched and rendered)
     const topPerformersData = await fetchTopPerformersData();
-    const topPerformersCard = document.querySelector('.row.g-3 > .col-md-4 > .card'); // Adjusted selector
+    const topPerformersCard = document.querySelector('.row.g-3 > .col-md-4 > .card');
 
     // Clear any previous "No data" messages or existing chart content
     if (topPerformersCard) {
@@ -609,12 +697,11 @@ async function renderCharts(platform = 'all') { // Default to 'all'
 
 // Run after DOM is fully loaded
 document.addEventListener("DOMContentLoaded", () => {
-    // Initial render with 'all' platforms selected
-    renderCharts('all');
+    // Initial render with 'all' platforms selected and 'lastYear' time range by default
+    renderCharts('all', 'lastYear');
 
     // Add event listener for the platform filter dropdown
     const platformFilterDropdown = document.getElementById('platformFilterDropdown');
-    // Ensure platformFilterDropdown actually exists before trying to access its nextSibling
     if (platformFilterDropdown) {
         const dropdownMenu = platformFilterDropdown.nextElementSibling;
         if (dropdownMenu) {
@@ -625,13 +712,43 @@ document.addEventListener("DOMContentLoaded", () => {
                     event.preventDefault(); // Prevent default link behavior
                     const selectedPlatform = this.dataset.platform;
                     platformFilterDropdown.textContent = `Platform: ${this.textContent}`; // Update button text
-                    renderCharts(selectedPlatform); // Re-render charts with the selected platform
+                    platformFilterDropdown.dataset.platform = selectedPlatform; // Store selected platform
+                    // Get current time range to preserve it when platform changes
+                    const currentTimeRangeDropdown = document.getElementById('timeRangeFilterDropdown');
+                    const currentTimeRange = currentTimeRangeDropdown ? currentTimeRangeDropdown.dataset.timeRange : 'lastYear'; // Default if not found
+                    renderCharts(selectedPlatform, currentTimeRange); // Re-render charts with selected platform and current time range
                 });
             });
         } else {
-            console.warn("Dropdown menu not found. Check HTML structure for platformFilterDropdown.");
+            console.warn("Platform filter dropdown menu not found. Check HTML structure for platformFilterDropdown.");
         }
     } else {
         console.warn("Platform filter dropdown button not found. Check HTML structure.");
+    }
+
+    // Add event listener for the time range filter dropdown
+    const timeRangeFilterDropdown = document.getElementById('timeRangeFilterDropdown');
+    if (timeRangeFilterDropdown) {
+        const dropdownMenu = timeRangeFilterDropdown.nextElementSibling;
+        if (dropdownMenu) {
+            const dropdownItems = dropdownMenu.querySelectorAll('.dropdown-item');
+
+            dropdownItems.forEach(item => {
+                item.addEventListener('click', function(event) {
+                    event.preventDefault(); // Prevent default link behavior
+                    const selectedTimeRange = this.dataset.timeRange;
+                    timeRangeFilterDropdown.textContent = `Time: ${this.textContent}`; // Update button text
+                    timeRangeFilterDropdown.dataset.timeRange = selectedTimeRange; // Store selected time range
+                    // Get current platform to preserve it when time range changes
+                    const currentPlatformDropdown = document.getElementById('platformFilterDropdown');
+                    const currentPlatform = currentPlatformDropdown ? currentPlatformDropdown.dataset.platform : 'all'; // Default if not found
+                    renderCharts(currentPlatform, selectedTimeRange); // Re-render charts with current platform and selected time range
+                });
+            });
+        } else {
+            console.warn("Time range filter dropdown menu not found. Check HTML structure for timeRangeFilterDropdown.");
+        }
+    } else {
+        console.warn("Time range filter dropdown button not found. Check HTML structure.");
     }
 });
