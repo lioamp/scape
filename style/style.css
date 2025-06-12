@@ -18,7 +18,7 @@ body:not(.login-page-body) {
 
 /* Specific body style for the login page */
 body.login-page-body {
-    background-color: #e0e0e0; /* Light gray background as per new design */
+    background-color: #31027e; /* Light gray background as per new design */
     display: flex; /* Ensure full viewport height and centering of content */
     justify-content: center;
     align-items: center;
