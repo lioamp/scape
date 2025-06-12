@@ -11,6 +11,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       const activeLink = document.querySelector(`a[href="${currentPage}"]`);
       if (activeLink) activeLink.classList.add("active");
 
+      // Dispatch a custom event after the sidebar content is loaded
+      document.dispatchEvent(new Event('sidebarLoaded'));
+
     } catch (error) {
       console.error("Failed to load sidebar:", error);
     }
