@@ -9,9 +9,14 @@ from io import BytesIO
 from firebase_admin import credentials, auth
 from functools import wraps
 import uuid # Import the UUID module for generating unique IDs
+import logging # Import logging module
+import urllib.parse # Import urllib.parse for manual URL encoding
 
 app = Flask(__name__)
 CORS(app)
+
+# Configure logging to show info messages
+logging.basicConfig(level=logging.INFO)
 
 # --- Supabase config ---
 SUPABASE_URL = "https://jfajaxpzkjqvdibdyibz.supabase.co"
@@ -23,7 +28,7 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-def fetch_table(table_name, select="*", order=None, limit=None):
+def fetch_table(table_name, select="*", order=None, limit=None, start_date=None, end_date=None):
     """
     Fetches data from a specified Supabase table.
 
@@ -32,21 +37,44 @@ def fetch_table(table_name, select="*", order=None, limit=None):
         select (str): The columns to select (e.g., "*", "column1,column2").
         order (str): The column to order by (e.g., "date.asc", "sales.desc").
         limit (int): The maximum number of rows to return.
+        start_date (str): Optional start date in YYYY-MM-DD format for filtering.
+        end_date (str): Optional end date in YYYY-MM-DD format for filtering.
 
     Returns:
         list: A list of dictionaries representing the fetched rows.
     """
-    url = f"{SUPABASE_URL}/rest/v1/{table_name}"
-    params = {"select": select}
+    base_url = f"{SUPABASE_URL}/rest/v1/{table_name}"
+    
+    # Manually build query parameters to ensure specific formatting and encoding
+    query_parts = []
+    
+    # Always include select
+    query_parts.append(f"select={urllib.parse.quote(select)}")
+
     if order:
-        params["order"] = order
+        query_parts.append(f"order={urllib.parse.quote(order)}")
     if limit:
-        params["limit"] = limit
-    response = requests.get(url, headers=HEADERS, params=params)
+        query_parts.append(f"limit={limit}")
+    
+    # Add date filtering with 'column=operator.value' syntax and explicit quoting
+    if start_date:
+        query_parts.append(f"date=gte.{urllib.parse.quote(str(start_date))}")
+    if end_date:
+        query_parts.append(f"date=lte.{urllib.parse.quote(str(end_date))}")
+
+    full_url = f"{base_url}?{'&'.join(query_parts)}"
+
+    logging.info(f"Attempting to fetch from URL: {full_url} with headers: {HEADERS}")
+
+    response = requests.get(full_url, headers=HEADERS)
+    
+    logging.info(f"Response status from Supabase for {table_name}: {response.status_code}")
+    logging.info(f"Response text from Supabase for {table_name}: {response.text}")
+
     if response.status_code == 200:
         return response.json()
     else:
-        print(f"Error fetching table {table_name}: {response.status_code} - {response.text}")
+        logging.error(f"Error fetching table {table_name}: {response.status_code} - {response.text}")
         return []
 
 def fetch_summary(table_name, field="sales"):
@@ -65,13 +93,18 @@ def fetch_summary(table_name, field="sales"):
     params = {
         "select": f"sum({field})"
     }
+    logging.info(f"Attempting to fetch summary from URL: {url} with params: {params} and headers: {HEADERS}")
     response = requests.get(url, headers=HEADERS, params=params)
+    
+    logging.info(f"Response status from Supabase summary for {table_name} - {field}: {response.status_code}")
+    logging.info(f"Response text from Supabase summary for {table_name} - {field}: {response.text}")
+
     if response.status_code == 200 and response.json():
         # Supabase usually returns [{"sum": value}] or [{"sum_field": value}]
         sum_key = next(iter(response.json()[0].keys())) # Get the key dynamically
         return response.json()[0][sum_key]
     else:
-        print(f"Error fetching summary for {table_name} - {field}: {response.status_code} - {response.text}")
+        logging.error(f"Error fetching summary for {table_name} - {field}: {response.status_code} - {response.text}")
         return 0
 
 def fetch_top_products(limit=5):
@@ -93,14 +126,18 @@ def fetch_top_products(limit=5):
 
 @app.route('/api/tiktokdata')
 def tiktok_data():
-    """API endpoint to get TikTok data, ordered by date."""
-    data = fetch_table("tiktokdata", order="date.asc")
+    """API endpoint to get TikTok data, ordered by date, with optional date filtering."""
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    data = fetch_table("tiktokdata", order="date.asc", start_date=start_date, end_date=end_date)
     return jsonify(data)
 
 @app.route('/api/facebookdata')
 def facebook_data():
-    """API endpoint to get Facebook data, ordered by date."""
-    data = fetch_table("facebookdata", order="date.asc")
+    """API endpoint to get Facebook data, ordered by date, with optional date filtering."""
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    data = fetch_table("facebookdata", order="date.asc", start_date=start_date, end_date=end_date)
     return jsonify(data)
 
 @app.route('/api/sales/summary')
@@ -346,14 +383,14 @@ def upload_data():
 
         else:
             return jsonify({"message": f"Unsupported app name provided: '{app_name}'. "
-                                     "Please select 'Facebook' or 'TikTok'."}), 400
+                                      "Please select 'Facebook' or 'TikTok'."}), 400
 
         # Validate that all required columns are present in the processed DataFrame
         if not required_columns.issubset(df.columns):
             missing_columns = list(required_columns - set(df.columns))
             return jsonify({
                 "message": f"Missing required columns for {app_name} data. "
-                           f"Expected: {sorted(list(required_columns))}. Missing: {sorted(missing_columns)}."
+                               f"Expected: {sorted(list(required_columns))}. Missing: {sorted(missing_columns)}."
             }), 400
             
         # Select only the relevant columns for the target Supabase table
