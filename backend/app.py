@@ -30,52 +30,76 @@ HEADERS = {
 
 def fetch_table(table_name, select="*", order=None, limit=None, start_date=None, end_date=None):
     """
-    Fetches data from a specified Supabase table.
+    Fetches data from a specified Supabase table, implementing pagination.
 
     Args:
         table_name (str): The name of the table to fetch data from.
         select (str): The columns to select (e.g., "*", "column1,column2").
         order (str): The column to order by (e.g., "date.asc", "sales.desc").
-        limit (int): The maximum number of rows to return.
-        start_date (str): Optional start date in McClellan-MM-DD format for filtering.
-        end_date (str): Optional end date in McClellan-MM-DD format for filtering.
+        limit (int): The maximum number of rows to return (if None, fetches all).
+        start_date (str): Optional start date in YYYY-MM-DD format for filtering.
+        end_date (str): Optional end date in YYYY-MM-DD format for filtering.
 
     Returns:
         list: A list of dictionaries representing the fetched rows.
     """
     base_url = f"{SUPABASE_URL}/rest/v1/{table_name}"
-    
-    # Manually build query parameters to ensure specific formatting and encoding
-    query_parts = []
-    
-    # Always include select
-    query_parts.append(f"select={urllib.parse.quote(select)}")
+    all_records = []
+    offset = 0
+    page_size = 1000 # Fetch 1000 records at a time
 
-    if order:
-        query_parts.append(f"order={urllib.parse.quote(order)}")
-    if limit:
-        query_parts.append(f"limit={limit}")
-    
-    # Add date filtering with 'column=operator.value' syntax and explicit quoting
-    if start_date:
-        query_parts.append(f"date=gte.{urllib.parse.quote(str(start_date))}")
-    if end_date:
-        query_parts.append(f"date=lte.{urllib.parse.quote(str(end_date))}")
+    while True:
+        query_parts = []
+        query_parts.append(f"select={urllib.parse.quote(select)}")
 
-    full_url = f"{base_url}?{'&'.join(query_parts)}"
+        if order:
+            query_parts.append(f"order={urllib.parse.quote(order)}")
+        
+        # Add date filtering with 'column=operator.value' syntax and explicit quoting
+        if start_date:
+            query_parts.append(f"date=gte.{urllib.parse.quote(str(start_date))}")
+        if end_date:
+            query_parts.append(f"date=lte.{urllib.parse.quote(str(end_date))}")
+        
+        # Add pagination (offset and limit for the current page)
+        # Using Supabase's `limit` parameter for each paginated request instead of Range header
+        # as it's simpler to combine with other query parameters.
+        query_parts.append(f"offset={offset}")
+        query_parts.append(f"limit={page_size}")
 
-    logging.info(f"Attempting to fetch from URL: {full_url} with headers: {HEADERS}")
+        full_url = f"{base_url}?{'&'.join(query_parts)}"
 
-    response = requests.get(full_url, headers=HEADERS)
-    
-    logging.info(f"Response status from Supabase for {table_name}: {response.status_code}")
-    logging.info(f"Response text from Supabase for {table_name}: {response.text}")
+        current_headers = HEADERS.copy()
+        # No Range header needed if using offset/limit query parameters directly.
+        
+        logging.info(f"Attempting to fetch from URL (page {offset // page_size + 1}): {full_url}")
 
-    if response.status_code == 200:
-        return response.json()
-    else:
-        logging.error(f"Error fetching table {table_name}: {response.status_code} - {response.text}")
-        return []
+        response = requests.get(full_url, headers=current_headers)
+        
+        logging.info(f"Response status from Supabase for {table_name} (page {offset // page_size + 1}): {response.status_code}")
+
+        if response.status_code == 200:
+            records_page = response.json()
+            if not records_page:
+                break # No more records to fetch
+
+            all_records.extend(records_page)
+            
+            # If a specific limit was requested and we've reached it, stop fetching
+            if limit is not None and len(all_records) >= limit:
+                all_records = all_records[:limit] # Trim to the requested limit
+                break
+
+            # If the number of records returned is less than the page_size, it's the last page
+            if len(records_page) < page_size:
+                break
+            
+            offset += page_size # Move to the next page
+        else:
+            logging.error(f"Error fetching table {table_name}: {response.status_code} - {response.text}")
+            break # Exit loop on error
+
+    return all_records
 
 def fetch_summary(table_name, field="sales"):
     """
@@ -118,7 +142,7 @@ def fetch_top_products(limit=5):
     Returns:
         list: A list of dictionaries, each containing 'product_name' and 'sales'.
     """
-    # 1. Fetch sales data (product_id and total_price)
+    # 1. Fetch sales data (product_id and total_price) - now using pagination
     sales_data = fetch_table("sales", select="product_id,revenue") 
     
     if not sales_data:
@@ -133,7 +157,7 @@ def fetch_top_products(limit=5):
     aggregated_sales = sales_df.groupby('product_id')['revenue'].sum().reset_index()
     aggregated_sales.rename(columns={'revenue': 'sales'}, inplace=True) # Rename for consistency
 
-    # 2. Fetch product information (product_id and product_name)
+    # 2. Fetch product information (product_id and product_name) - now using pagination
     products_info = fetch_table("products", select="product_id,product_name")
 
     if not products_info:
@@ -156,7 +180,8 @@ def tiktok_data():
     """API endpoint to get TikTok data, ordered by date, with optional date filtering."""
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
-    data = fetch_table("tiktokdata", order="date.asc", start_date=start_date, end_date=end_date)
+    # Use explicit limit=None to ensure pagination in fetch_table for potentially large datasets
+    data = fetch_table("tiktokdata", order="date.asc", limit=None, start_date=start_date, end_date=end_date)
     return jsonify(data)
 
 @app.route('/api/facebookdata')
@@ -164,7 +189,8 @@ def facebook_data():
     """API endpoint to get Facebook data, ordered by date, with optional date filtering."""
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
-    data = fetch_table("facebookdata", order="date.asc", start_date=start_date, end_date=end_date)
+    # Use explicit limit=None to ensure pagination in fetch_table for potentially large datasets
+    data = fetch_table("facebookdata", order="date.asc", limit=None, start_date=start_date, end_date=end_date)
     return jsonify(data)
 
 @app.route('/api/salesdata')
@@ -172,7 +198,8 @@ def sales_data():
     """API endpoint to get Sales data, ordered by date, with optional date filtering."""
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
-    data = fetch_table("sales", order="date.asc", start_date=start_date, end_date=end_date)
+    # Use explicit limit=None to ensure pagination in fetch_table to get all sales data
+    data = fetch_table("sales", order="date.asc", limit=None, start_date=start_date, end_date=end_date)
     return jsonify(data)
 
 @app.route('/api/sales/summary')
