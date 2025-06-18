@@ -12,10 +12,21 @@
     <link rel="stylesheet" href="style/style.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="js/charts.js" type="module"></script>
+    <!-- New script imports -->
+    <script src="js/utils.js" type="module"></script>
+    <script src="js/dataFetcher.js" type="module"></script>
+    <script src="js/summaryUpdater.js" type="module"></script>
+    <script src="js/chartRenderers.js" type="module"></script>
+    <script src="js/main.js" type="module"></script> <!-- This replaces charts.js -->
   </head>
 
   <body>
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" style="display: none;">
+      <div class="spinner"></div>
+      <div class="loading-text">Loading data... Please wait.</div>
+    </div>
+
     <div class="d-flex vh-100">
       <div id="sidebar-container"></div>
 
