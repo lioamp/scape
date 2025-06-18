@@ -1,0 +1,43 @@
+<nav class="sidebar d-flex flex-column bg-primary text-white">
+  <!-- Brand/Logo Section -->
+  <div class="sidebar-brand text-center py-4 px-3">
+    <!-- Removed the icon for the brand/logo -->
+    <span class="fs-5 fw-bold">SCAPE</span>
+  </div>
+
+  <!-- Navigation Links Container -->
+  <div class="nav-links-container flex-grow-1">
+    <a href="dashboard.html" id="dashboard-link" class="nav-link text-decoration-none py-3 px-4 d-flex align-items-center">
+      <i class="fas fa-chart-line icon me-3"></i> <!-- Original Dashboard icon -->
+      <span class="nav-text">Dashboard</span>
+    </a>
+
+    <a href="performance-evaluation.html" id="performance-link" class="nav-link text-decoration-none py-3 px-4 d-flex align-items-center">
+      <i class="fas fa-tachometer-alt icon me-3"></i> <!-- Original Performance icon -->
+      <span class="nav-text">Performance</span>
+    </a>
+
+    <a href="correlation-analysis.html" id="correlation-link" class="nav-link text-decoration-none py-3 px-4 d-flex align-items-center">
+      <i class="fas fa-project-diagram icon me-3"></i> <!-- Original Correlation icon -->
+      <span class="nav-text">Correlation</span>
+    </a>
+
+    <a href="predictive-analytics.html" id="predictive-link" class="nav-link text-decoration-none py-3 px-4 d-flex align-items-center">
+      <i class="fas fa-chart-bar icon me-3"></i> <!-- Original Predictive icon -->
+      <span class="nav-text">Predictive</span>
+    </a>
+
+    <a href="user-management.html" id="user-management-link" class="nav-link text-decoration-none py-3 px-4 d-flex align-items-center d-none">
+      <i class="fas fa-users-cog icon me-3"></i> <!-- Original Users icon -->
+      <span class="nav-text">Users</span>
+    </a>
+  </div>
+
+  <!-- Logout Button Container (restored original functionality, kept new button style) -->
+  <div class="sidebar-bottom-btn-container px-3 pb-3">
+    <button onclick="logout()" class="btn sidebar-bottom-btn d-flex align-items-center justify-content-center w-100">
+      <i class="fas fa-sign-out-alt me-2"></i> <!-- Logout icon -->
+      Logout
+    </button>
+  </div>
+</nav>

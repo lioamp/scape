@@ -1,45 +1,39 @@
-// Import Firebase modules
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
-import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
+// Assume auth.js handles Firebase initialization and auth state
 
-const firebaseConfig = {
-  apiKey: "AIzaSyCyIr7hWhROGodkcsMJC9n4sEuDOR5NGww",
-  authDomain: "scape-login.firebaseapp.com",
-  projectId: "scape-login",
-  storageBucket: "scape-login.firebasestorage.app",
-  messagingSenderId: "410040228789",
-  appId: "1:410040228789:web:5b9b4b32e91c5549ab17fc",
-  measurementId: "G-GBNRL156FJ"
-};
+async function fetchPredictiveData(token) {
+    try {
+        const response = await fetch("http://localhost:5000/api/predictive-analytics", {
+            headers: { Authorization: token }
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || "Failed to fetch predictive analytics data");
+        }
+        const data = await response.json();
+        renderPredictiveChart(data);
+    } catch (error) {
+        alert("Error loading predictive analytics: " + error.message);
+        console.error("Error loading predictive analytics:", error.message);
+    }
+}
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
+function renderPredictiveChart(data) {
+    // Render chart or display data on the page
+    // Placeholder: console log
+    console.log("Predictive analytics data:", data);
+}
 
-// Redirect if user is not authenticated
-onAuthStateChanged(auth, (user) => {
-  if (!user) {
-    window.location.href = "index.html";
-  }
-});
+function initializePredictiveAnalytics() {
+    if (window.currentUserToken) {
+        fetchPredictiveData(window.currentUserToken);
+    } else {
+        const interval = setInterval(() => {
+            if (window.currentUserToken) {
+                clearInterval(interval);
+                fetchPredictiveData(window.currentUserToken);
+            }
+        }, 500);
+    }
+}
 
-// Logout button handler
-window.logout = function () {
-  signOut(auth).then(() => {
-    window.location.href = "index.html";
-  });
-};
-
-// Show visualization and hide others
-window.showVisualization = function (id) {
-  document.querySelectorAll(".visualization").forEach((el) => el.classList.add("d-none"));
-  document.getElementById(id).classList.remove("d-none");
-};
-
-// Highlight active sidebar link
-document.querySelectorAll(".nav-link").forEach((link) => {
-  if (link.href === window.location.href) {
-    link.classList.add("active");
-  } else {
-    link.classList.remove("active");
-  }
-});
+initializePredictiveAnalytics();
