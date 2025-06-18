@@ -1,8 +1,8 @@
 // Import functions from other modules
-import { getMonthYearAbbreviation } from './utils.js';
-import { fetchPlatformData, fetchSalesChartData, fetchTopPerformersData } from './dataFetcher.js';
-import { updateSummaryTotals } from './summaryUpdater.js';
-import { renderReachChart, renderEngagementChart, renderSalesChart, renderTopPerformersChart } from './chartRenderers.js';
+import { getMonthYearAbbreviation } from './dashboard-utils.js';
+import { fetchPlatformData, fetchSalesChartData, fetchTopPerformersData } from './dashboard-dataFetcher.js';
+import { updateSummaryTotals } from './dashboard-summaryUpdater.js';
+import { renderReachChart, renderEngagementChart, renderSalesChart, renderTopPerformersChart } from './dashboard-chartRenderers.js';
 
 /**
  * Merges two arrays of data, summing common date entries and including unique ones.
@@ -142,43 +142,93 @@ function filterAndAggregateData(data, timeRange) {
 }
 
 /**
- * Main function to render all charts on the dashboard based on the selected platform and time range.
- * @param {string} platform - The platform to display data for ('tiktok', 'facebook', or 'all').
- * @param {string} timeRange - The time range to filter data ('last3months', 'last6months', 'lastYear', 'allTime').
+ * Shows a loading overlay for a specific chart.
+ * @param {string} chartId - The ID of the chart's loading overlay element.
  */
-async function renderCharts(platform = 'all', timeRange = 'lastYear') { 
-    console.log(`Rendering charts for platform: ${platform}, time range: ${timeRange}`);
-
-    const loadingOverlay = document.getElementById('loadingOverlay');
-    if (loadingOverlay) {
-        loadingOverlay.style.display = 'flex'; // Show loading overlay
+function showChartLoading(chartId) {
+    const overlay = document.getElementById(chartId);
+    if (overlay) {
+        overlay.style.display = 'flex'; // Ensure it's displayed as flex
     }
+}
 
+/**
+ * Hides a loading overlay for a specific chart.
+ * @param {string} chartId - The ID of the chart's loading overlay element.
+ */
+function hideChartLoading(chartId) {
+    const overlay = document.getElementById(chartId);
+    if (overlay) {
+        overlay.style.display = 'none';
+    }
+}
+
+/**
+ * Renders the Summary Totals.
+ * @param {Array<number>} reachData - Array of reach values.
+ * @param {Array<number>} engagementData - Array of engagement values.
+ * @param {Array<number>} salesData - Array of sales values.
+ */
+async function renderSummary(reachData, engagementData, salesData) {
     try {
-        let reachEngagementData = { rawData: [] };
-        let salesChartRawData = [];
-
-        // Fetch reach and engagement data (TikTok/Facebook)
-        reachEngagementData = await fetchPlatformData(platform);
-        
-        // Fetch sales data (from 'sales' table)
-        salesChartRawData = await fetchSalesChartData(timeRange);
-
-        // Combine reach/engagement data with sales data for unified aggregation
-        const combinedRawData = mergeData(reachEngagementData.rawData, salesChartRawData);
-        
-        // Filter and aggregate the combined raw data for reach, engagement, and sales
-        const { labels, reachData, engagementData, salesData } = filterAndAggregateData(combinedRawData, timeRange);
-
-        // Render charts using the imported render functions
-        renderReachChart(labels, reachData);
-        renderEngagementChart(labels, engagementData);
-        renderSalesChart(labels, salesData); 
-
-        // Update summary totals in the small cards
         updateSummaryTotals(reachData, engagementData, salesData);
+    } catch (error) {
+        console.error("Error rendering summary:", error);
+    } finally {
+        hideChartLoading('summaryLoadingOverlay');
+    }
+}
 
-        // Fetch and render top performers chart (this chart is NOT platform-specific, so it's always fetched and rendered)
+/**
+ * Renders the Reach Chart.
+ * @param {Array<string>} labels - X-axis labels.
+ * @param {Array<number>} reachData - Data for the reach chart.
+ */
+async function renderReach(labels, reachData) {
+    try {
+        renderReachChart(labels, reachData);
+    } catch (error) {
+        console.error("Error rendering reach chart:", error);
+    } finally {
+        hideChartLoading('reachChartLoadingOverlay');
+    }
+}
+
+/**
+ * Renders the Engagement Chart.
+ * @param {Array<string>} labels - X-axis labels.
+ * @param {Array<number>} engagementData - Data for the engagement chart.
+ */
+async function renderEngagement(labels, engagementData) {
+    try {
+        renderEngagementChart(labels, engagementData);
+    } catch (error) {
+        console.error("Error rendering engagement chart:", error);
+    } finally {
+        hideChartLoading('engagementChartLoadingOverlay');
+    }
+}
+
+/**
+ * Renders the Sales Chart.
+ * @param {Array<string>} labels - X-axis labels.
+ * @param {Array<number>} salesData - Data for the sales chart.
+ */
+async function renderSales(labels, salesData) {
+    try {
+        renderSalesChart(labels, salesData);
+    } catch (error) {
+        console.error("Error rendering sales chart:", error);
+    } finally {
+        hideChartLoading('salesChartLoadingOverlay');
+    }
+}
+
+/**
+ * Renders the Top Performers Chart.
+ */
+async function renderTopPerformers() {
+    try {
         const topPerformersData = await fetchTopPerformersData();
         const topPerformersCard = document.querySelector('.row.g-3 > .col-md-4 > .card');
 
@@ -211,19 +261,67 @@ async function renderCharts(platform = 'all', timeRange = 'lastYear') {
             }
         }
     } catch (error) {
-        console.error("Error during chart rendering:", error);
-        // Optionally display an error message to the user
+        console.error("Error rendering top performers chart:", error);
     } finally {
-        if (loadingOverlay) {
-            loadingOverlay.style.display = 'none'; // Hide loading overlay regardless of success or failure
-        }
+        hideChartLoading('topPerformersChartLoadingOverlay');
+    }
+}
+
+/**
+ * Main function to render all charts on the dashboard based on the selected platform and time range.
+ * @param {string} platform - The platform to display data for ('tiktok', 'facebook', or 'all').
+ * @param {string} timeRange - The time range to filter data ('last3months', 'last6months', 'lastYear', 'allTime').
+ */
+async function renderAllCharts(platform = 'all', timeRange = 'lastYear') { 
+    console.log(`Rendering charts for platform: ${platform}, time range: ${timeRange}`);
+
+    // Show all individual chart loading overlays immediately
+    showChartLoading('summaryLoadingOverlay');
+    showChartLoading('reachChartLoadingOverlay');
+    showChartLoading('engagementChartLoadingOverlay');
+    showChartLoading('salesChartLoadingOverlay');
+    showChartLoading('topPerformersChartLoadingOverlay');
+
+
+    try {
+        let reachEngagementData = { rawData: [] };
+        let salesChartRawData = [];
+
+        // Fetch all necessary raw data concurrently
+        [reachEngagementData, salesChartRawData] = await Promise.all([
+            fetchPlatformData(platform),
+            fetchSalesChartData(timeRange)
+        ]);
+
+        // Combine and aggregate data
+        const combinedRawData = mergeData(reachEngagementData.rawData, salesChartRawData);
+        const { labels, reachData, engagementData, salesData } = filterAndAggregateData(combinedRawData, timeRange);
+
+        // Render charts and summary individually with their own loading states
+        // Use Promise.all to allow charts to render concurrently
+        await Promise.all([
+            renderSummary(reachData, engagementData, salesData),
+            renderReach(labels, reachData),
+            renderEngagement(labels, engagementData),
+            renderSales(labels, salesData),
+            renderTopPerformers() // Top performers data is independent of platform/timeRange filters
+        ]);
+
+    } catch (error) {
+        console.error("Error during chart rendering:", error);
+        // In case of an error, ensure all overlays are hidden
+        hideChartLoading('summaryLoadingOverlay');
+        hideChartLoading('reachChartLoadingOverlay');
+        hideChartLoading('engagementChartLoadingOverlay');
+        hideChartLoading('salesChartLoadingOverlay');
+        hideChartLoading('topPerformersChartLoadingOverlay');
     }
 }
 
 // Run after DOM is fully loaded
 document.addEventListener("DOMContentLoaded", () => {
     // Initial render with 'all' platforms selected and 'lastYear' time range by default
-    renderCharts('all', 'lastYear');
+    renderAllCharts('all', 'lastYear');
 
     // Add event listener for the platform filter dropdown
     const platformFilterDropdown = document.getElementById('platformFilterDropdown');
@@ -240,7 +338,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     platformFilterDropdown.dataset.platform = selectedPlatform; 
                     const currentTimeRangeDropdown = document.getElementById('timeRangeFilterDropdown');
                     const currentTimeRange = currentTimeRangeDropdown ? currentTimeRangeDropdown.dataset.timeRange : 'lastYear'; 
-                    renderCharts(selectedPlatform, currentTimeRange); 
+                    renderAllCharts(selectedPlatform, currentTimeRange); 
                 });
             });
         } else {
@@ -265,7 +363,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     timeRangeFilterDropdown.dataset.timeRange = selectedTimeRange; 
                     const currentPlatformDropdown = document.getElementById('platformFilterDropdown');
                     const currentPlatform = currentPlatformDropdown ? currentPlatformDropdown.dataset.platform : 'all'; 
-                    renderCharts(currentPlatform, selectedTimeRange); 
+                    renderAllCharts(currentPlatform, selectedTimeRange); 
                 });
             });
         } else {
