@@ -12,21 +12,15 @@
     <link rel="stylesheet" href="style/style.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- New script imports -->
-    <script src="js/utils.js" type="module"></script>
-    <script src="js/dataFetcher.js" type="module"></script>
-    <script src="js/summaryUpdater.js" type="module"></script>
-    <script src="js/chartRenderers.js" type="module"></script>
-    <script src="js/main.js" type="module"></script> <!-- This replaces charts.js -->
+    <!-- Updated script imports with new file names -->
+    <script src="js/dashboard-utils.js" type="module"></script>
+    <script src="js/dashboard-dataFetcher.js" type="module"></script>
+    <script src="js/dashboard-summaryUpdater.js" type="module"></script>
+    <script src="js/dashboard-chartRenderers.js" type="module"></script>
+    <script src="js/dashboard-main.js" type="module"></script>
   </head>
 
   <body>
-    <!-- Loading Overlay -->
-    <div id="loadingOverlay" style="display: none;">
-      <div class="spinner"></div>
-      <div class="loading-text">Loading data... Please wait.</div>
-    </div>
-
     <div class="d-flex vh-100">
       <div id="sidebar-container"></div>
 
@@ -141,6 +135,10 @@
         <div class="row g-3 mb-3">
             <div class="col-12"> <!-- Full width for Summary table -->
                 <div class="card position-relative">
+                    <!-- Individual loading overlay for summary card -->
+                    <div class="chart-loading-overlay" id="summaryLoadingOverlay">
+                        <div class="spinner"></div>
+                    </div>
                     <div class="card-header fw-bold">Summary Totals</div>
                     <div class="d-flex justify-content-around p-3">
                         <div class="small-card text-center p-3 border rounded-3 shadow-sm bg-light">
@@ -164,6 +162,10 @@
         <div class="row g-3 mb-3">
             <div class="col-12"> <!-- Full width for Reach chart -->
                 <div class="card position-relative">
+                    <!-- Individual loading overlay for reach chart -->
+                    <div class="chart-loading-overlay" id="reachChartLoadingOverlay">
+                        <div class="spinner"></div>
+                    </div>
                     <div class="card-header fw-bold">Reach</div>
                     <canvas id="reachChart" style="max-height: 350px; width: 100%"></canvas>
                 </div>
@@ -174,6 +176,10 @@
         <div class="row g-3 mb-3">
             <div class="col-12"> <!-- Full width for Engagement chart -->
                 <div class="card position-relative">
+                    <!-- Individual loading overlay for engagement chart -->
+                    <div class="chart-loading-overlay" id="engagementChartLoadingOverlay">
+                        <div class="spinner"></div>
+                    </div>
                     <div class="card-header fw-bold">Engagement</div>
                     <canvas id="engagementChart" style="max-height: 350px; width: 100%"></canvas>
                 </div>
@@ -184,17 +190,25 @@
         <div class="row g-3">
           <div class="col-md-8">
             <div class="card position-relative h-100">
-              <div class="card-header fw-bold">Sales</div>
-              <canvas
-                id="salesChart"
-                style="max-height: 350px; width: 100%"
-              ></canvas>
+                <!-- Individual loading overlay for sales chart -->
+                <div class="chart-loading-overlay" id="salesChartLoadingOverlay">
+                    <div class="spinner"></div>
+                </div>
+                <div class="card-header fw-bold">Sales</div>
+                <canvas
+                  id="salesChart"
+                  style="max-height: 350px; width: 100%"
+                ></canvas>
             </div>
           </div>
 
           <!-- Performance Table -->
           <div class="col-md-4">
             <div class="card position-relative h-100">
+                <!-- Individual loading overlay for top performers chart -->
+                <div class="chart-loading-overlay" id="topPerformersChartLoadingOverlay">
+                    <div class="spinner"></div>
+                </div>
                 <div class="card-header fw-bold">Top Performers</div>
                 <canvas id="topPerformersChart" style="max-height: 350px; width: 100%;"></canvas>
             </div>
