@@ -1,8 +1,11 @@
 // Function to fetch data for TikTok, Facebook, or both
-export async function fetchPlatformData(platform) {
+export async function fetchPlatformData(platform) { // Removed timeRange parameter
     let normalizedData = [];
-    const CACHE_KEY = `platformData_${platform}`;
+    // Updated CACHE_KEY to remove timeRange as filtering is now client-side
+    const CACHE_KEY = `platformData_${platform}`; 
     const CACHE_EXPIRATION_MS = 5 * 60 * 1000; // 5 minutes
+
+    // Removed startDate and dateQueryParam logic as filtering is now client-side
 
     try {
         // Try to load from cache
@@ -21,8 +24,8 @@ export async function fetchPlatformData(platform) {
         console.log(`Fetching data for ${platform} (from API)...`);
         if (platform === 'all') {
             const [tiktokResponse, facebookResponse] = await Promise.all([
-                fetch('http://127.0.0.1:5000/api/tiktokdata'),
-                fetch('http://127.0.0.1:5000/api/facebookdata')
+                fetch('http://127.0.0.1:5000/api/tiktokdata'), // Removed date filter
+                fetch('http://127.0.0.1:5000/api/facebookdata') // Removed date filter
             ]);
 
             let tiktokRawData = tiktokResponse.ok ? await tiktokResponse.json() : [];
@@ -45,7 +48,7 @@ export async function fetchPlatformData(platform) {
             normalizedData = [...normalizedTikTok, ...normalizedFacebook];
 
         } else if (platform === 'tiktok') {
-            const response = await fetch('http://127.0.0.1:5000/api/tiktokdata');
+            const response = await fetch('http://127.0.0.1:5000/api/tiktokdata'); // Removed date filter
             if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
             let rawData = await response.json();
             normalizedData = rawData.map(item => ({
@@ -56,7 +59,7 @@ export async function fetchPlatformData(platform) {
             }));
 
         } else if (platform === 'facebook') {
-            const response = await fetch('http://127.0.0.1:5000/api/facebookdata');
+            const response = await fetch('http://127.0.0.1:5000/api/facebookdata'); // Removed date filter
             if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
             let rawData = await response.json();
             normalizedData = rawData.map(item => ({
@@ -152,8 +155,8 @@ export async function fetchSalesChartData(timeRange) {
 }
 
 // Function to fetch top performers data
-export async function fetchTopPerformersData() {
-    const CACHE_KEY = 'topPerformersData';
+export async function fetchTopPerformersData(timeRange) { // Added timeRange parameter
+    const CACHE_KEY = `topPerformersData_${timeRange}`; // Updated cache key to include timeRange
     const CACHE_EXPIRATION_MS = 5 * 60 * 1000; // 5 minutes
 
     try {
@@ -163,15 +166,43 @@ export async function fetchTopPerformersData() {
             const { data, timestamp } = JSON.parse(cachedData);
             // Check if cached data is still valid
             if (Date.now() - timestamp < CACHE_EXPIRATION_MS) {
-                console.log("Using cached top performers data.");
+                console.log(`Using cached top performers data for time range: ${timeRange}.`);
                 return data;
             } else {
-                console.log("Cached top performers data expired.");
+                console.log(`Cached top performers data for time range: ${timeRange} expired.`);
             }
         }
 
-        console.log("Fetching top performers data (from API)...");
-        const response = await fetch('http://127.0.0.1:5000/api/sales/top');
+        let url = 'http://127.0.0.1:5000/api/sales/top';
+        const now = new Date();
+        let startDate = null;
+
+        // Determine start date based on timeRange for the API call
+        switch (timeRange) {
+            case 'last3months':
+                startDate = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+                break;
+            case 'last6months':
+                startDate = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+                break;
+            case 'lastYear':
+                startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+                break;
+            case 'allTime':
+            default:
+                break; 
+        }
+
+        if (startDate) {
+            const startYear = startDate.getFullYear();
+            const startMonth = String(startDate.getMonth() + 1).padStart(2, '0');
+            const startDay = String(startDate.getDate()).padStart(2, '0');
+            // Add start_date to the URL if a time range is selected
+            url += `?start_date=${startYear}-${startMonth}-${startDay}`;
+        }
+
+        console.log("Fetching top performers data from URL (from API):", url);
+        const response = await fetch(url);
         if (!response.ok) {
             throw new Error(`HTTP error! Status: ${response.status}`);
         }
