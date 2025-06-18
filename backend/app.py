@@ -37,8 +37,8 @@ def fetch_table(table_name, select="*", order=None, limit=None, start_date=None,
         select (str): The columns to select (e.g., "*", "column1,column2").
         order (str): The column to order by (e.g., "date.asc", "sales.desc").
         limit (int): The maximum number of rows to return.
-        start_date (str): Optional start date in YYYY-MM-DD format for filtering.
-        end_date (str): Optional end date in YYYY-MM-DD format for filtering.
+        start_date (str): Optional start date in McClellan-MM-DD format for filtering.
+        end_date (str): Optional end date in McClellan-MM-DD format for filtering.
 
     Returns:
         list: A list of dictionaries representing the fetched rows.
@@ -109,7 +109,8 @@ def fetch_summary(table_name, field="sales"):
 
 def fetch_top_products(limit=5):
     """
-    Fetches the top products by sales from the 'products' table.
+    Fetches the top products by sales, aggregating from the 'sales' table
+    and joining with 'products' table for product names.
 
     Args:
         limit (int): The number of top products to return.
@@ -117,12 +118,38 @@ def fetch_top_products(limit=5):
     Returns:
         list: A list of dictionaries, each containing 'product_name' and 'sales'.
     """
-    return fetch_table(
-        "products",
-        select="product_name,sales", # Ensure these column names match your Supabase table
-        order="sales.desc",
-        limit=limit
-    )
+    # 1. Fetch sales data (product_id and total_price)
+    sales_data = fetch_table("sales", select="product_id,revenue") 
+    
+    if not sales_data:
+        logging.info("No sales data available for top product calculation.")
+        return []
+
+    sales_df = pd.DataFrame(sales_data)
+    # Ensure revenue is numeric, as it might come as string from DB or be null
+    sales_df['revenue'] = pd.to_numeric(sales_df['revenue'], errors='coerce').fillna(0)
+
+    # Aggregate sales by product_id
+    aggregated_sales = sales_df.groupby('product_id')['revenue'].sum().reset_index()
+    aggregated_sales.rename(columns={'revenue': 'sales'}, inplace=True) # Rename for consistency
+
+    # 2. Fetch product information (product_id and product_name)
+    products_info = fetch_table("products", select="product_id,product_name")
+
+    if not products_info:
+        logging.info("No product info available for top product calculation.")
+        return []
+
+    products_df = pd.DataFrame(products_info)
+
+    # 3. Join the two dataframes to get product_name alongside aggregated sales
+    merged_df = pd.merge(aggregated_sales, products_df, on='product_id', how='inner')
+
+    # Sort by sales in descending order and take the top 'limit'
+    top_products_df = merged_df.sort_values(by='sales', ascending=False).head(limit)
+
+    # Return as list of dictionaries
+    return top_products_df[['product_name', 'sales']].to_dict(orient='records')
 
 @app.route('/api/tiktokdata')
 def tiktok_data():
@@ -140,10 +167,19 @@ def facebook_data():
     data = fetch_table("facebookdata", order="date.asc", start_date=start_date, end_date=end_date)
     return jsonify(data)
 
+@app.route('/api/salesdata')
+def sales_data():
+    """API endpoint to get Sales data, ordered by date, with optional date filtering."""
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    data = fetch_table("sales", order="date.asc", start_date=start_date, end_date=end_date)
+    return jsonify(data)
+
 @app.route('/api/sales/summary')
 def sales_summary():
     """API endpoint to get the total sales summary."""
-    total_sales = fetch_summary("products", "sales")
+    # Assuming 'sales' table has a 'revenue' column for total sales
+    total_sales = fetch_summary("sales", "revenue") 
     return jsonify({"total_sales": total_sales})
 
 @app.route('/api/sales/top')
@@ -269,17 +305,16 @@ def delete_user(uid):
         if current_uid == uid:
             return jsonify({'error': 'You cannot delete your own account'}), 403 # Prevent self-deletion
         auth.delete_user(uid)
-        return jsonify({'message': 'User deleted'}), 200
+        return jsonify({'message': 'User deleted'}), 400
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
 @app.route('/api/upload-data', methods=['POST'])
 def upload_data():
     """
-    Handles file uploads for Facebook or TikTok data.
+    Handles file uploads for Facebook, TikTok, or Sales data.
     Supports CSV, Excel (.xlsx, .xls), and JSON file formats.
-    Dynamically generates 'post_id' for Facebook if not present.
-    Aggregates TikTok data by date to match the 'date' primary key.
+    Normalizes Sales data into 'products' and 'sales' tables.
     """
     try:
         app_name = request.form.get("app")
@@ -323,21 +358,16 @@ def upload_data():
         # Standardize column names: strip whitespace and convert to lowercase
         df.columns = df.columns.str.strip().str.lower()
 
-        # Validate and format 'date' column
-        if 'date' not in df.columns:
-            return jsonify({"message": "Missing 'date' column in uploaded file."}), 400
-        try:
-            # Attempt to convert 'date' column to datetime objects, then extract date part
-            df['date'] = pd.to_datetime(df['date']).dt.date
-            # Convert date objects to strings to make them JSON serializable
-            df['date'] = df['date'].astype(str)
-        except Exception as e:
-            return jsonify({"message": f"Error parsing 'date' column: {str(e)}. "
-                                     "Please ensure dates are in a recognizable format (e.g.,YYYY-MM-DD)."}), 400
-
-        table_name = None
-        required_columns = set()
-
+        # Validate and format 'date' column for all data types that use it
+        if 'date' in df.columns:
+            try:
+                df['date'] = pd.to_datetime(df['date']).dt.date
+                df['date'] = df['date'].astype(str) # Convert date objects to strings for JSON serializability
+            except Exception as e:
+                return jsonify({"message": f"Error parsing 'date' column: {str(e)}. "
+                                         "Please ensure dates are in a recognizable format (e.g.,YYYY-MM-DD)."}), 400
+        
+        # --- Handle different app types ---
         if app_name.lower() == "facebook":
             table_name = "facebookdata"
             required_columns = {'date', 'likes', 'comments', 'shares', 'reach'}
@@ -360,6 +390,9 @@ def upload_data():
                 deduplication_subset.append('post_url')
             df.drop_duplicates(subset=deduplication_subset, keep='last', inplace=True)
 
+            df_to_upload = df[list(required_columns)]
+            records = df_to_upload.to_dict(orient='records')
+            target_tables = {table_name: records}
 
         elif app_name.lower() == "tiktok":
             table_name = "tiktokdata"
@@ -381,57 +414,141 @@ def upload_data():
                 if col not in df.columns:
                     df[col] = 0 # Add missing aggregated columns with default 0
 
+            df_to_upload = df[list(required_columns)]
+            records = df_to_upload.to_dict(orient='records')
+            target_tables = {table_name: records}
+
+        elif app_name.lower() == "sales": 
+            # Normalization for 'products' and 'sales' tables
+            products_table_name = "products"
+            sales_table_name = "sales"
+
+            # Define expected columns from the uploaded file for sales data (using actual column names after stripping/lowercasing)
+            required_sales_columns = {'date', 'product id', 'product name', 'quantity sold', 'price', 'revenue'}
+            
+            # Check if all required columns are in the DataFrame
+            if not required_sales_columns.issubset(df.columns):
+                missing_columns = list(required_sales_columns - set(df.columns))
+                return jsonify({
+                    "message": f"Missing required columns for Sales data. "
+                               f"Expected: {sorted(list(required_sales_columns))}. Missing: {sorted(missing_columns)}."
+                }), 400
+
+            # Rename columns for internal consistency after the check
+            df.rename(columns={
+                'product id': 'product_id',
+                'product name': 'product_name',
+                'quantity sold': 'quantity', # Internal name 'quantity'
+                'price': 'price_per_unit' # Renaming for internal use
+            }, inplace=True)
+
+            # Ensure numeric columns are indeed numeric
+            for col in ['quantity', 'price_per_unit', 'revenue']:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0) 
+
+            # Calculate total_price for each sale record (if not using 'revenue' directly)
+            if 'revenue' in df.columns:
+                df['total_price'] = df['revenue']
+            else:
+                df['total_price'] = df['quantity'] * df['price_per_unit']
+
+
+            # --- Normalize for Products Table ---
+            # Extract unique products and their aggregated sales
+            # If 'product_id' is provided in the uploaded file, use it; otherwise, generate UUIDs.
+            if 'product_id' in df.columns:
+                products_df = df[['product_id', 'product_name']].drop_duplicates().copy()
+                products_df['product_id'] = products_df['product_id'].astype(str) # Ensure product_id is string
+            else:
+                # Generate product_id if not provided
+                unique_products = df[['product_name']].drop_duplicates().copy()
+                unique_products['product_id'] = [str(uuid.uuid4()) for _ in range(len(unique_products))]
+                
+                # Merge back to original df to get product_id for sales table
+                df = pd.merge(df, unique_products, on='product_name', how='left')
+
+                products_df = unique_products # products_df is now just product_id and product_name
+
+            products_records = products_df[['product_id', 'product_name']].to_dict(orient='records') # Ensure only these columns are sent
+            logging.info(f"Products records for upload: {products_records}")
+
+            # --- Normalize for Sales Table ---
+            sales_df = df.copy()
+            
+            # Generate sale_id for each record as per new schema
+            sales_df['sale_id'] = [str(uuid.uuid4()) for _ in range(len(sales_df))]
+
+            # Ensure 'product_id' is present after the merge/generation step
+            if 'product_id' not in sales_df.columns:
+                return jsonify({"message": "Internal error: product_id not generated/mapped for sales data."}), 500
+
+            # Map internal DataFrame columns back to Supabase 'sales' table column names
+            sales_records = sales_df.rename(columns={
+                'price_per_unit': 'price', # Map internal 'price_per_unit' back to Supabase 'price'
+                'total_price': 'revenue',    # Map internal 'total_price' to Supabase 'revenue'
+                'quantity': 'quantity_sold' # Map internal 'quantity' back to Supabase 'quantity_sold'
+            })[[
+                'sale_id', 'product_id', 'date', 'quantity_sold', 'price', 'revenue' # Include sale_id here
+            ]].to_dict(orient='records')
+            logging.info(f"Sales records for upload: {sales_records}")
+
+            # Define tables to upload to
+            target_tables = {
+                products_table_name: products_records,
+                sales_table_name: sales_records
+            }
+
         else:
             return jsonify({"message": f"Unsupported app name provided: '{app_name}'. "
-                                      "Please select 'Facebook' or 'TikTok'."}), 400
+                                      "Please select 'Facebook', 'TikTok', or 'Sales'."}), 400
 
-        # Validate that all required columns are present in the processed DataFrame
-        if not required_columns.issubset(df.columns):
-            missing_columns = list(required_columns - set(df.columns))
-            return jsonify({
-                "message": f"Missing required columns for {app_name} data. "
-                               f"Expected: {sorted(list(required_columns))}. Missing: {sorted(missing_columns)}."
-            }), 400
+        # Iterate through target tables and upload data
+        upload_messages = []
+        for tbl_name, records in target_tables.items():
+            if not records:
+                upload_messages.append(f"No data to upload for table: {tbl_name}.")
+                continue
+
+            url = f"{SUPABASE_URL}/rest/v1/{tbl_name}"
+            supabase_headers = HEADERS.copy()
             
-        # Select only the relevant columns for the target Supabase table
-        df_to_upload = df[list(required_columns)]
+            # ONLY use merge-duplicates for 'products' table, as it's for upserting products
+            # For 'sales' table, we are now inserting with a new primary key (sale_id)
+            if tbl_name == "products":
+                supabase_headers["Prefer"] = "resolution=merge-duplicates"
+            else:
+                # For sales table, simply insert (no Prefer header needed for default insert behavior)
+                if "Prefer" in supabase_headers:
+                    del supabase_headers["Prefer"]
 
-        # Convert DataFrame records to a list of dictionaries, suitable for Supabase insertion
-        records = df_to_upload.to_dict(orient='records')
 
-        # Construct Supabase API URL for the target table
-        url = f"{SUPABASE_URL}/rest/v1/{table_name}"
-        supabase_headers = HEADERS.copy()
-        # Set Prefer header for upsert behavior (merge-duplicates)
-        supabase_headers["Prefer"] = "resolution=merge-duplicates"
+            logging.info(f"Attempting to upload to {tbl_name} with {len(records)} records.")
+            response = requests.post(url, headers=supabase_headers, json=records)
 
-        # Send POST request to Supabase API to upload data
-        response = requests.post(url, headers=supabase_headers, json=records)
+            if response.status_code in [200, 201, 204]:
+                upload_messages.append(f"'{tbl_name}' data uploaded successfully.")
+            else:
+                supabase_error_detail = f"Supabase returned status {response.status_code}."
+                try:
+                    error_data = response.json()
+                    if 'message' in error_data:
+                        supabase_error_detail = error_data['message']
+                    elif 'error' in error_data:
+                        supabase_error_detail = error_data['error']
+                    else:
+                        supabase_error_detail = str(error_data)
+                except ValueError:
+                    supabase_error_detail = response.text
+                
+                upload_messages.append(f"'{tbl_name}' upload failed: {supabase_error_detail}")
+                # If one table upload fails, consider the overall operation a failure for now
+                return jsonify({"message": "; ".join(upload_messages)}), response.status_code
 
-        # Check Supabase response status and return appropriate message
-        if response.status_code in [200, 201, 204]:
-            return jsonify({"message": f"{app_name.capitalize()} data uploaded successfully."}), 200
-        else:
-            # Attempt to extract detailed error message from Supabase response
-            supabase_error_detail = f"Supabase returned status {response.status_code}."
-            try:
-                error_data = response.json()
-                if 'message' in error_data:
-                    supabase_error_detail = error_data['message']
-                elif 'error' in error_data:
-                    supabase_error_detail = error_data['error']
-                else:
-                    supabase_error_detail = str(error_data) # Fallback to string representation
-            except ValueError:
-                supabase_error_detail = response.text # Use raw text if not JSON
-
-            return jsonify({"message": f"Supabase upload failed: {supabase_error_detail}"}), response.status_code
+        return jsonify({"message": "; ".join(upload_messages)}), 200
 
     except Exception as e:
-        # Catch any unexpected errors that occur during the entire upload process
         return jsonify({"message": f"Server error during file upload processing: {str(e)}"}), 500
     
 if __name__ == "__main__":
-    # Run the Flask app in debug mode.
-    # Set host='0.0.0.0' to make it accessible from other devices on the network.
     app.run(debug=True, host='127.0.0.1', port=5000)
