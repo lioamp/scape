@@ -65,6 +65,17 @@ uploadForm.addEventListener("submit", async (e) => {
         const uploadModal = bootstrap.Modal.getInstance(document.getElementById('uploadModal'));
         uploadModal.hide();
         uploadForm.reset();
+        // Re-render charts to show the newly uploaded data
+        // Get current platform and time range from dropdowns
+        const currentPlatformDropdown = document.getElementById('platformFilterDropdown');
+        const currentPlatform = currentPlatformDropdown ? currentPlatformDropdown.dataset.platform : 'all';
+        const currentTimeRangeDropdown = document.getElementById('timeRangeFilterDropdown');
+        const currentTimeRange = currentTimeRangeDropdown ? currentTimeRangeDropdown.dataset.timeRange : 'lastYear';
+        if (typeof renderCharts === 'function') { // Ensure renderCharts is available
+            renderCharts(currentPlatform, currentTimeRange);
+        } else {
+            console.warn("renderCharts function not found. Charts may not auto-update.");
+        }
       }, 1500);
     } else {
       // Use the message from the server if available, otherwise a generic error
