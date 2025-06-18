@@ -7,7 +7,7 @@ import { renderReachChart, renderEngagementChart, renderSalesChart, renderTopPer
 /**
  * Merges two arrays of data, summing common date entries and including unique ones.
  * Assumes data objects have a 'date' property and numerical 'reach', 'engagement', 'sales' properties.
- * This function expects already normalized data (i.e., 'reach', 'engagement', 'sales' keys are present).
+ * This function expects already normalized data (i.e., 'reach', 'engagement', 'sales' keys are present).\
  * @param {Array<Object>} data1 - First array of normalized data.
  * @param {Array<Object>} data2 - Second array of normalized data.
  * @returns {Array<Object>} Merged and sorted data.
@@ -175,7 +175,10 @@ async function renderSummary(reachData, engagementData, salesData) {
     } catch (error) {
         console.error("Error rendering summary:", error);
     } finally {
-        hideChartLoading('summaryLoadingOverlay');
+        // Hide individual summary loading overlays
+        hideChartLoading('summaryTotalReachLoadingOverlay');
+        hideChartLoading('summaryTotalEngagementLoadingOverlay');
+        hideChartLoading('summaryTotalSalesLoadingOverlay');
     }
 }
 
@@ -226,11 +229,14 @@ async function renderSales(labels, salesData) {
 
 /**
  * Renders the Top Performers Chart.
+ * @param {string} timeRange - The time range to filter data.
  */
-async function renderTopPerformers() {
+async function renderTopPerformers(timeRange) { // Added timeRange parameter
+    showChartLoading('topPerformersChartLoadingOverlay');
     try {
-        const topPerformersData = await fetchTopPerformersData();
-        const topPerformersCard = document.querySelector('.row.g-3 > .col-md-4 > .card');
+        // Pass timeRange to the fetch function
+        const topPerformersData = await fetchTopPerformersData(timeRange); 
+        const topPerformersCard = document.querySelector('.row.g-3 #topPerformersChartLoadingOverlay').parentElement; // Get the parent card of the overlay
 
         // Clear any previous "No data" messages or existing chart content
         if (topPerformersCard) {
@@ -247,7 +253,7 @@ async function renderTopPerformers() {
             if (topPerformersCard) {
                 const noDataMessage = document.createElement('div');
                 noDataMessage.className = 'text-center text-muted p-4 no-data-message';
-                noDataMessage.textContent = 'No top performers data available.';
+                noDataMessage.textContent = 'No top performers data available for this time range.';
                 topPerformersCard.appendChild(noDataMessage);
             }
             // Ensure the canvas is hidden or cleared if no data
@@ -276,7 +282,9 @@ async function renderAllCharts(platform = 'all', timeRange = 'lastYear') {
     console.log(`Rendering charts for platform: ${platform}, time range: ${timeRange}`);
 
     // Show all individual chart loading overlays immediately
-    showChartLoading('summaryLoadingOverlay');
+    showChartLoading('summaryTotalReachLoadingOverlay'); 
+    showChartLoading('summaryTotalEngagementLoadingOverlay'); 
+    showChartLoading('summaryTotalSalesLoadingOverlay'); 
     showChartLoading('reachChartLoadingOverlay');
     showChartLoading('engagementChartLoadingOverlay');
     showChartLoading('salesChartLoadingOverlay');
@@ -288,29 +296,34 @@ async function renderAllCharts(platform = 'all', timeRange = 'lastYear') {
         let salesChartRawData = [];
 
         // Fetch all necessary raw data concurrently
+        // fetchPlatformData now explicitly does NOT take timeRange for backend filtering.
+        // Frontend will filter and aggregate data.
         [reachEngagementData, salesChartRawData] = await Promise.all([
-            fetchPlatformData(platform),
+            fetchPlatformData(platform), 
             fetchSalesChartData(timeRange)
         ]);
 
         // Combine and aggregate data
+        // This is where filtering based on timeRange happens for Reach/Engagement/Sales
         const combinedRawData = mergeData(reachEngagementData.rawData, salesChartRawData);
         const { labels, reachData, engagementData, salesData } = filterAndAggregateData(combinedRawData, timeRange);
 
         // Render charts and summary individually with their own loading states
-        // Use Promise.all to allow charts to render concurrently
+        // Pass timeRange to renderTopPerformers for backend filtering
         await Promise.all([
             renderSummary(reachData, engagementData, salesData),
             renderReach(labels, reachData),
             renderEngagement(labels, engagementData),
             renderSales(labels, salesData),
-            renderTopPerformers() // Top performers data is independent of platform/timeRange filters
+            renderTopPerformers(timeRange) // Pass timeRange here
         ]);
 
     } catch (error) {
         console.error("Error during chart rendering:", error);
         // In case of an error, ensure all overlays are hidden
-        hideChartLoading('summaryLoadingOverlay');
+        hideChartLoading('summaryTotalReachLoadingOverlay'); 
+        hideChartLoading('summaryTotalEngagementLoadingOverlay'); 
+        hideChartLoading('summaryTotalSalesLoadingOverlay'); 
         hideChartLoading('reachChartLoadingOverlay');
         hideChartLoading('engagementChartLoadingOverlay');
         hideChartLoading('salesChartLoadingOverlay');

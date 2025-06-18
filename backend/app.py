@@ -4,7 +4,7 @@ import pandas as pd
 import io
 import requests
 import firebase_admin
-from datetime import datetime
+from datetime import datetime, timedelta
 from io import BytesIO
 from firebase_admin import credentials, auth
 from functools import wraps
@@ -101,22 +101,30 @@ def fetch_table(table_name, select="*", order=None, limit=None, start_date=None,
 
     return all_records
 
-def fetch_summary(table_name, field="sales"):
+def fetch_summary(table_name, field, start_date=None, end_date=None): # Added date parameters
     """
-    Fetches the sum of a specific field from a Supabase table.
+    Fetches the sum of a specific field from a Supabase table with optional date filtering.
 
     Args:
         table_name (str): The name of the table.
         field (str): The field to sum (e.g., "sales", "reach").
+        start_date (str): Optional start date in YYYY-MM-DD format for filtering.
+        end_date (str): Optional end date in YYYY-MM-DD format for filtering.
 
     Returns:
         float or int: The sum of the field, or 0 if an error occurs or no data.
     """
     url = f"{SUPABASE_URL}/rest/v1/{table_name}"
-    # Using Supabase PostgREST's RPC style aggregate: sum of sales
     params = {
         "select": f"sum({field})"
     }
+    
+    # Add date filtering to params
+    if start_date:
+        params[f"date"] = f"gte.{urllib.parse.quote(str(start_date))}"
+    if end_date:
+        params[f"date"] = f"lte.{urllib.parse.quote(str(end_date))}"
+
     logging.info(f"Attempting to fetch summary from URL: {url} with params: {params} and headers: {HEADERS}")
     response = requests.get(url, headers=HEADERS, params=params)
     
@@ -131,19 +139,21 @@ def fetch_summary(table_name, field="sales"):
         logging.error(f"Error fetching summary for {table_name} - {field}: {response.status_code} - {response.text}")
         return 0
 
-def fetch_top_products(limit=5):
+def fetch_top_products(limit=5, start_date=None, end_date=None): # Added date parameters
     """
     Fetches the top products by sales, aggregating from the 'sales' table
-    and joining with 'products' table for product names.
+    and joining with 'products' table for product names, with optional date filtering.
 
     Args:
         limit (int): The number of top products to return.
+        start_date (str): Optional start date in YYYY-MM-DD format for filtering.
+        end_date (str): Optional end date in YYYY-MM-DD format for filtering.
 
     Returns:
         list: A list of dictionaries, each containing 'product_name' and 'sales'.
     """
-    # 1. Fetch sales data (product_id and total_price) - now using pagination
-    sales_data = fetch_table("sales", select="product_id,revenue") 
+    # 1. Fetch sales data (product_id and total_price) with date filtering
+    sales_data = fetch_table("sales", select="product_id,revenue,date", start_date=start_date, end_date=end_date) 
     
     if not sales_data:
         logging.info("No sales data available for top product calculation.")
@@ -177,20 +187,16 @@ def fetch_top_products(limit=5):
 
 @app.route('/api/tiktokdata')
 def tiktok_data():
-    """API endpoint to get TikTok data, ordered by date, with optional date filtering."""
-    start_date = request.args.get('start_date')
-    end_date = request.args.get('end_date')
-    # Use explicit limit=None to ensure pagination in fetch_table for potentially large datasets
-    data = fetch_table("tiktokdata", order="date.asc", limit=None, start_date=start_date, end_date=end_date)
+    """API endpoint to get TikTok data, ordered by date, WITHOUT frontend date filtering (handled client-side)."""
+    # Removed start_date and end_date from request.args.get as filtering is done client-side.
+    data = fetch_table("tiktokdata", order="date.asc", limit=None) # Removed date parameters
     return jsonify(data)
 
 @app.route('/api/facebookdata')
 def facebook_data():
-    """API endpoint to get Facebook data, ordered by date, with optional date filtering."""
-    start_date = request.args.get('start_date')
-    end_date = request.args.get('end_date')
-    # Use explicit limit=None to ensure pagination in fetch_table for potentially large datasets
-    data = fetch_table("facebookdata", order="date.asc", limit=None, start_date=start_date, end_date=end_date)
+    """API endpoint to get Facebook data, ordered by date, WITHOUT frontend date filtering (handled client-side)."""
+    # Removed start_date and end_date from request.args.get as filtering is done client-side.
+    data = fetch_table("facebookdata", order="date.asc", limit=None) # Removed date parameters
     return jsonify(data)
 
 @app.route('/api/salesdata')
@@ -204,35 +210,47 @@ def sales_data():
 
 @app.route('/api/sales/summary')
 def sales_summary():
-    """API endpoint to get the total sales summary."""
+    """API endpoint to get the total sales summary. Currently not used by frontend for main summary."""
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
     # Assuming 'sales' table has a 'revenue' column for total sales
-    total_sales = fetch_summary("sales", "revenue") 
+    total_sales = fetch_summary("sales", "revenue", start_date=start_date, end_date=end_date) 
     return jsonify({"total_sales": total_sales})
 
 @app.route('/api/sales/top')
 def sales_top():
-    """API endpoint to get the top products by sales."""
-    top_products = fetch_top_products()
+    """API endpoint to get the top products by sales, with optional date filtering."""
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    top_products = fetch_top_products(start_date=start_date, end_date=end_date) # Pass date parameters
     return jsonify(top_products)
 
 @app.route('/api/tiktok/reach_summary')
 def tiktok_reach_summary():
-    """API endpoint to get the total reach (views) for TikTok data."""
-    total_views = fetch_summary("tiktokdata", "views")
+    """API endpoint to get the total reach (views) for TikTok data. Currently not used by frontend for main summary."""
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    total_views = fetch_summary("tiktokdata", "views", start_date=start_date, end_date=end_date)
     return jsonify({"total_tiktok_reach": total_views})
 
 @app.route('/api/tiktok/engagement_summary')
 def tiktok_engagement_summary():
-    """API endpoint to get the total engagement (likes + comments + shares) for TikTok data."""
-    total_likes = fetch_summary("tiktokdata", "likes")
-    total_comments = fetch_summary("tiktokdata", "comments")
-    total_shares = fetch_summary("tiktokdata", "shares")
+    """API endpoint to get the total engagement (likes + comments + shares) for TikTok data. Currently not used by frontend for main summary."""
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    total_likes = fetch_summary("tiktokdata", "likes", start_date=start_date, end_date=end_date)
+    total_comments = fetch_summary("tiktokdata", "comments", start_date=start_date, end_date=end_date)
+    total_shares = fetch_summary("tiktokdata", "shares", start_date=start_date, end_date=end_date)
     total_engagement = (total_likes or 0) + (total_comments or 0) + (total_shares or 0)
     return jsonify({"total_tiktok_engagement": total_engagement})
 
 # Initialize Firebase Admin SDK
 # IMPORTANT: Ensure 'serviceAccountKey.json' path is correct for your environment.
 try:
+    # Use os.getenv for environment variable for production, or a relative path for local development
+    # For local development, you might place serviceAccountKey.json in the same directory as app.py
+    # and use: credentials.Certificate('serviceAccountKey.json')
+    # For current setup, assuming absolute path from initial shared snippet
     cred = credentials.Certificate(r'C:\Users\Carlos\Documents\scape\backend\serviceAccountKey.json')
     firebase_admin.initialize_app(cred)
 except Exception as e:
@@ -309,7 +327,6 @@ def update_user(uid):
     data = request.json
     display_name = data.get('display_name')
     roles = data.get('roles', {})
-
     try:
         auth.update_user(uid, display_name=display_name)
         if roles:
