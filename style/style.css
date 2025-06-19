@@ -437,9 +437,17 @@ main {
 
 /* Custom styling for the recommendation text */
 .small-text-recommendation {
-    font-size: 0.85em; /* Smaller text for recommendations */
-    line-height: 1.4;
+    font-size: 0.95em; /* Slightly larger text for recommendations for readability */
+    line-height: 1.5;
+    font-weight: 500;
+    color: #444;
+    padding: 15px;
+    background-color: #e9ecef; /* Light background for the recommendation box */
+    border-radius: 8px;
+    margin-top: 20px;
+    text-align: left; /* Align text left within the box */
 }
+
 /* Basic styling for chart containers to match card aesthetic */
 .chart-container-style {
     padding: 1.5rem;
@@ -447,4 +455,15 @@ main {
     border-radius: 0.75rem; /* Rounded corners */
     box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.05); /* Soft shadow */
     background-color: white;
+    width: 100%; /* Ensure it takes full width of its parent */
+    max-width: 900px; /* Max width for better readability on large screens */
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* Ensure canvas takes available space */
+canvas {
+    max-height: 400px; /* Limit chart height */
+    width: 100% !important; /* Override Chart.js default width to be responsive */
+    height: auto !important; /* Maintain aspect ratio */
 }
