@@ -19,10 +19,11 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-// Global variable to store current user role
+// Global variable to store current user role and token
 let currentUserRole = "Other";
 let currentAuthUser = null; // Store the authenticated user object
 let currentUserClaims = null; // Store the user's claims
+window.currentUserToken = null; // Initialize global token variable
 
 // Make logout globally callable
 window.logout = () => {
@@ -84,6 +85,7 @@ onAuthStateChanged(auth, async (user) => {
     window.location.href = "index.html";
     currentUserRole = "Other"; // Reset role
     currentUserClaims = null; // Clear claims
+    window.currentUserToken = null; // Clear token
     updateAdminUI(); // Hide UI elements if logged out
     return;
   }
@@ -97,6 +99,7 @@ onAuthStateChanged(auth, async (user) => {
   try {
     const idTokenResult = await getIdTokenResult(user);
     currentUserClaims = idTokenResult.claims; // Store claims globally
+    window.currentUserToken = await user.getIdToken(); // Set the token globally after successful authentication
 
     if (currentUserClaims.admin === true) {
       currentUserRole = "Admin";
@@ -112,10 +115,17 @@ onAuthStateChanged(auth, async (user) => {
     // This will handle cases where auth resolves before sidebar loads.
     updateAdminUI();
 
+    // Dispatch a custom event to notify other scripts that the token is available
+    const tokenAvailableEvent = new CustomEvent('tokenAvailable', {
+        detail: { token: window.currentUserToken, userRole: currentUserRole }
+    });
+    window.dispatchEvent(tokenAvailableEvent);
+
   } catch (error) {
-    console.error("Error retrieving role claims:", error);
+    console.error("Error retrieving role claims or ID token:", error);
     currentUserRole = "Other"; // Default role on error
     currentUserClaims = null; // Clear claims on error
+    window.currentUserToken = null; // Clear token on error
     updateAdminUI(); // Ensure UI is hidden if claims fail
   }
 });
