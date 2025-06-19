@@ -605,6 +605,7 @@ def perform_arima_forecast(series, forecast_periods):
     logging.info(f"Attempting ARIMA forecast for {len(series)} data points.")
     if len(series) < 5: # ARIMA needs a reasonable amount of data
         logging.warning("Not enough data for ARIMA. Falling back to Linear Regression.")
+        # Ensure that when falling back, it still returns the last historical year as an integer
         return perform_linear_regression_forecast(series, forecast_periods), series.index.max().year
 
     try:
@@ -623,11 +624,27 @@ def perform_arima_forecast(series, forecast_periods):
             # Explicitly add a YearEnd frequency to get the correct future year's end
             forecast_year_dt = last_historical_year_dt + pd.offsets.YearEnd(i + 1) 
             
+            # Ensure predicted values are not negative for engagement/reach type metrics
+            predicted_value = round(float(forecast.iloc[i]), 2)
+            lower_bound = round(float(conf_int[i][0]), 2)
+            upper_bound = round(float(conf_int[i][1]), 2)
+
+            # Enforce non-negativity for appropriate metrics
+            # This is a heuristic to prevent negative predictions for metrics that shouldn't be negative.
+            # You might need to adjust this based on the specific behavior of your data and models.
+            if predicted_value < 0:
+                predicted_value = 0
+            if lower_bound < 0:
+                lower_bound = 0
+            # Upper bound can sometimes be negative if the lower bound is strongly negative and range is small
+            # but usually it should be positive if predicted_value is positive.
+            # For simplicity, we ensure lower_bound and predicted_value are non-negative.
+
             forecast_results.append({
                 "year": int(forecast_year_dt.year), # Get the year as an integer
-                "value": round(float(forecast.iloc[i]), 2),
-                "lower_bound": round(float(conf_int[i][0]), 2),
-                "upper_bound": round(float(conf_int[i][1]), 2)
+                "value": predicted_value,
+                "lower_bound": lower_bound,
+                "upper_bound": upper_bound
             })
         logging.info(f"ARIMA forecast results: {forecast_results}")
         return forecast_results, last_historical_year_dt.year
@@ -635,6 +652,7 @@ def perform_arima_forecast(series, forecast_periods):
     except Exception as e:
         logging.error(f"Error during ARIMA forecast: {e}", exc_info=True)
         logging.warning("ARIMA failed. Falling back to Linear Regression.")
+        # Ensure that when falling back, it still returns the last historical year as an integer
         return perform_linear_regression_forecast(series, forecast_periods), series.index.max().year
 
 def perform_linear_regression_forecast(series, forecast_periods):
@@ -663,11 +681,24 @@ def perform_linear_regression_forecast(series, forecast_periods):
 
     forecast_results = []
     for i in range(forecast_periods):
+        predicted_value = round(float(forecast_values[i]), 2)
+        
+        # Enforce non-negativity for appropriate metrics
+        if predicted_value < 0:
+            predicted_value = 0
+
+        # Simple proxy for CI, also ensuring non-negativity
+        lower_bound = round(float(predicted_value * 0.9), 2) 
+        upper_bound = round(float(predicted_value * 1.1), 2)  
+        
+        if lower_bound < 0:
+            lower_bound = 0
+
         forecast_results.append({
             "year": int(forecast_years_int[i][0]), # Use the integer year directly
-            "value": round(float(forecast_values[i]), 2),
-            "lower_bound": round(float(forecast_values[i] * 0.9), 2), # Simple proxy for CI
-            "upper_bound": round(float(forecast_values[i] * 1.1), 2)  # Simple proxy for CI
+            "value": predicted_value,
+            "lower_bound": lower_bound,
+            "upper_bound": upper_bound
         })
     logging.info(f"Linear Regression forecast results: {forecast_results}")
     return forecast_results
@@ -694,7 +725,7 @@ def generate_recommendation(historical_series, forecast_results, metric_name):
         if change_percent > 5:
             recommendation += " This indicates a strong positive growth. Consider investing more in strategies that have driven this success."
         elif change_percent < -5:
-            recommendation += " This suggests a potential decline. It's crucial to analyze recent activities and re-evaluate your strategy to mitigate this trend."
+            recommendation += " This suggests a potential decline . It's crucial to analyze recent activities and re-evaluate your strategy to mitigate this trend."
         else:
             recommendation += " This indicates a stable trend. Continue optimizing current efforts and explore new avenues for growth."
         
@@ -731,19 +762,21 @@ def predictive_analytics():
         elif metric_type == 'engagement' or metric_type == 'reach':
             metric_name = "Engagement" if metric_type == 'engagement' else "Reach"
             
-            tiktok_records = fetch_table("tiktokdata", select="date,views,likes,comments,shares", order="date.asc")
+            # --- MODIFIED LOGIC: EXCLUDE TIKTOK DATA ---
+            # tiktok_records = fetch_table("tiktokdata", select="date,views,likes,comments,shares", order="date.asc")
             facebook_records = fetch_table("facebookdata", select="date,likes,comments,shares,reach", order="date.asc")
             
             combined_data = []
             
-            for item in tiktok_records:
-                combined_data.append({
-                    "date": item.get('date'),
-                    "likes": item.get('likes', 0),
-                    "comments": item.get('comments', 0),
-                    "shares": item.get('shares', 0),
-                    "views": item.get('views', 0) # TikTok uses 'views'
-                })
+            # # Include TikTok data only if desired in the future
+            # for item in tiktok_records:
+            #     combined_data.append({
+            #         "date": item.get('date'),
+            #         "likes": item.get('likes', 0),
+            #         "comments": item.get('comments', 0),
+            #         "shares": item.get('shares', 0),
+            #         "views": item.get('views', 0) # TikTok uses 'views'
+            #     })
             
             for item in facebook_records:
                 combined_data.append({
@@ -753,6 +786,7 @@ def predictive_analytics():
                     "shares": item.get('shares', 0),
                     "views": item.get('reach', 0) # Facebook uses 'reach'
                 })
+            # --- END MODIFIED LOGIC ---
 
             df = pd.DataFrame(combined_data)
             df['date'] = pd.to_datetime(df['date'], errors='coerce') # Coerce errors will turn invalid dates into NaT
@@ -771,64 +805,79 @@ def predictive_analytics():
         else:
             return jsonify({"error": "Unsupported metric type."}), 400
 
-        # Resample to annual data for forecasting
-        historical_series_annual = historical_series.resample('YE').sum().dropna() 
+        # Resample to annual data. If a year has no data, it will be NaN.
+        historical_series_annual = historical_series.resample('YE').sum() 
+        logging.info(f"Initial annual historical series before dropping NaNs:\n{historical_series_annual}")
         
-        if historical_series_annual.empty or len(historical_series_annual) < 2:
-            return jsonify({
-                "historical_data": [],
-                "forecast_data": [],
-                "recommendation": f"Not enough historical data to generate a forecast for {metric_name}. Please upload more data spanning multiple years.",
-                "message": "Not enough data for forecasting."
-            }), 200
+        # --- REVERTED LOGIC: Exclude INCOMPLETE current year data from historical for forecasting ---
+        current_calendar_date = datetime.now()
+        current_calendar_year = current_calendar_date.year
 
-        # Dynamic forecast periods: at least the next 3 years
-        last_historical_year_int = historical_series_annual.index.max().year 
-        current_year = datetime.now().year
+        # Determine the cutoff year for historical data to be used in the model.
+        # If the current calendar month is NOT December, then the current calendar year's
+        # data is inherently incomplete for annual aggregation purposes.
+        if current_calendar_date.month < 12: # Check if current month is less than December
+            last_complete_historical_year_for_model = current_calendar_year - 1
+            logging.info(f"Current calendar year {current_calendar_year} is incomplete (month is {current_calendar_date.month}). "
+                         f"Historical data for model training will end at {last_complete_historical_year_for_model}.")
+        else:
+            # If it's December, the current year is considered complete for now.
+            last_complete_historical_year_for_model = current_calendar_year
+            logging.info(f"Current calendar year {current_calendar_year} is complete (month is {current_calendar_date.month}). "
+                         f"Historical data for model training will end at {last_complete_historical_year_for_model}.")
+
+        # Filter the annually resampled series to only include years up to last_complete_historical_year_for_model.
+        # Drop NaNs *after* this filtering to ensure we only have data for years we intend to include.
+        historical_series_for_forecast = historical_series_annual[historical_series_annual.index.year <= last_complete_historical_year_for_model].dropna()
+
+        logging.info(f"Historical series FOR FORECASTING MODEL (after filtering for complete years):\n{historical_series_for_forecast}")
+
+        # Ensure we still have enough data after filtering for complete years
+        if historical_series_for_forecast.empty or len(historical_series_for_forecast) < 2:
+            return jsonify({
+                "historical_data": [], # No historical data for plot if filtered too much
+                "forecast_data": [],
+                "recommendation": f"Not enough *complete* historical data (at least 2 full years) to generate a forecast for {metric_name}. Please upload more complete historical data.",
+                "message": "Not enough complete historical data for forecasting."
+            }), 200
+        # --- END REVERTED LOGIC ---
+
+        last_historical_year_for_forecast_model = historical_series_for_forecast.index.max().year 
+        current_calendar_year = datetime.now().year
         
         # Calculate how many years are needed to reach at least (current_year + 3)
-        # If last historical year is 2020 and current is 2024, (2024+3) - 2020 = 7 years (2021, 22, 23, 24, 25, 26, 27)
-        # We need to forecast from last_historical_year_int + 1 up to current_year + 3
-        forecast_periods = max(3, (current_year + 3) - last_historical_year_int)
-
-        # If last historical year is already very far in the future, just forecast 1 year ahead
-        if last_historical_year_int >= (current_year + 3):
-            forecast_periods = 1
-            logging.info(f"Historical data already covers well beyond current year + 3. Forecasting 1 period ahead.")
-        elif last_historical_year_int >= current_year:
-            # If last historical year is current year or future, but within the +3 range, forecast as needed
-            # e.g., last_historical_year = 2024, current_year = 2024, forecast_periods = (2024+3)-2024 = 3
-            # e.g., last_historical_year = 2025, current_year = 2024, forecast_periods = (2024+3)-2025 = 2
-            forecast_periods = max(1, (current_year + 3) - last_historical_year_int)
-            logging.info(f"Last historical data is at or after current year. Forecasting {forecast_periods} periods.")
-        else: # last_historical_year_int is in the past relative to current year
-            # We want to ensure at least 3 years from current_year, even if last historical data is old
-            # The 'max(3, ...)' ensures we don't go below 3 years if there's a gap
-            forecast_periods = (current_year + 3) - last_historical_year_int
-            logging.info(f"Last historical data is in the past. Forecasting {forecast_periods} periods.")
+        MIN_FORECAST_YEARS = 3
         
-        # Ensure minimum forecast period is 1 to always have a next year's forecast for recommendation
+        # The forecast should start from the year *after* last_historical_year_for_forecast_model.
+        # It should extend to cover at least MIN_FORECAST_YEARS from the *current_calendar_year*.
+        target_forecast_end_year = current_calendar_year + MIN_FORECAST_YEARS
+        
+        forecast_periods = target_forecast_end_year - last_historical_year_for_forecast_model
+        
+        # If the calculated forecast_periods is zero or negative (meaning last historical year is
+        # already at or beyond the target forecast end year), forecast at least 1 period.
         if forecast_periods <= 0:
             forecast_periods = 1
-            logging.info("Adjusted forecast_periods to 1 to ensure a next year prediction for recommendation.")
+            logging.info(f"Target forecast years already covered by historical data. Adjusted forecast_periods to 1 for next year prediction.")
 
+        logging.info(f"Forecasting {forecast_periods} periods starting from {last_historical_year_for_forecast_model + 1}.")
 
-        forecast_results, actual_last_historical_year_for_forecast = perform_arima_forecast(historical_series_annual, forecast_periods)
+        forecast_results, actual_last_historical_year_from_model = perform_arima_forecast(historical_series_for_forecast, forecast_periods)
         
         # Ensure that the years in forecast_results align with the intended future sequence.
         # This handles cases where ARIMA might return different indices.
         if forecast_results:
-            # Reassign years to be consecutive starting from last_historical_year_int + 1
+            # Reassign years to be consecutive starting from last_historical_year_for_forecast_model + 1
             for i in range(len(forecast_results)):
-                forecast_results[i]['year'] = last_historical_year_int + 1 + i
+                forecast_results[i]['year'] = last_historical_year_for_forecast_model + 1 + i
 
 
         # Generate recommendation
-        recommendation = generate_recommendation(historical_series_annual, forecast_results, metric_name)
+        recommendation = generate_recommendation(historical_series_for_forecast, forecast_results, metric_name)
 
-        # Format historical data for frontend plotting
+        # Format historical data for frontend plotting (using the filtered series)
         historical_formatted = []
-        for year_dt, value in historical_series_annual.items():
+        for year_dt, value in historical_series_for_forecast.items():
             historical_formatted.append({
                 'year': year_dt.year,
                 'value': round(float(value), 2)
