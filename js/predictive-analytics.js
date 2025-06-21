@@ -1,8 +1,13 @@
-// Assume auth.js sets window.currentUserToken and provides Firebase app/auth instances
+// predictive-analytics.js
+
 // Chart instances to prevent recreation issues
 let engagementChartInstance = null;
 let reachChartInstance = null;
 let salesChartInstance = null;
+
+// Global state for filters
+let currentMetricType = 'sales'; // Default metric to display on load
+const fixedForecastYears = 3; // Fixed forecast period to 3 years
 
 /**
  * Shows a custom alert modal instead of the browser's alert.
@@ -22,160 +27,240 @@ function showCustomAlert(message, title = 'Notification') {
 }
 
 /**
+ * Shows or hides the loading indicator.
+ * @param {boolean} show True to show, false to hide.
+ */
+function showLoadingIndicator(show) {
+    const indicator = document.getElementById('loadingIndicator');
+    if (indicator) {
+        if (show) {
+            indicator.classList.remove('d-none');
+        } else {
+            indicator.classList.add('d-none');
+        }
+    }
+}
+
+
+/**
  * Fetches predictive data for a given metric type from the backend.
- * This now calls the combined /api/predictive-analytics endpoint.
  * @param {string} metricType 'sales', 'engagement', or 'reach'.
+ * @param {number} forecastYears The fixed number of years to forecast (e.g., 3).
  * @returns {Promise<object|null>} The data object containing historical data, forecast data, and recommendation, or null on error.
  */
-async function fetchPredictiveData(metricType) {
+async function fetchPredictiveData(metricType, forecastYears) {
+    showLoadingIndicator(true); // Show loading indicator
+
     try {
-        const token = window.currentUserToken; 
-        console.log(`Fetching predictive data for ${metricType}. Current token:`, token ? "Available" : "NOT available");
+        const token = window.currentUserToken; // Get token from global scope set by auth.js
+        console.log("Fetching predictive data. Current token:", token ? "Available" : "NOT available");
 
         if (!token) {
-            showCustomAlert("Authentication token not available. Please log in again.", "Authentication Required");
-            console.error("Authentication token is missing.");
+            showCustomAlert("Authentication token not available. Please log in.", "Authentication Required");
+            showLoadingIndicator(false);
             return null;
         }
 
-        const response = await fetch(`http://localhost:5000/api/predictive-analytics?metric_type=${metricType}`, {
-            headers: { Authorization: `Bearer ${token}` }
+        const API_BASE_URL = "http://127.0.0.1:5000/api"; // Your Flask backend URL
+        const response = await fetch(`${API_BASE_URL}/predictive-analytics?metric_type=${metricType}&forecast_years=${forecastYears}`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
         });
 
         if (!response.ok) {
             const errorData = await response.json();
-            showCustomAlert(errorData.error || `Failed to fetch predictive data for ${metricType}.`, "Error");
-            console.error(`Error fetching predictive data for ${metricType}:`, errorData);
-            return null;
+            throw new Error(errorData.error || `HTTP error! Status: ${response.status}`);
         }
+
         const data = await response.json();
-        
-        console.log(`Frontend received predictive data for ${metricType}:`, data);
+        console.log(`Predictive data for ${metricType} (fixed forecast of ${forecastYears} years):`, data);
         return data;
 
     } catch (error) {
-        showCustomAlert("An unexpected error occurred while fetching predictive data: " + error.message, "Network Error");
-        console.error("Network error or unexpected issue:", error);
+        console.error('Error fetching predictive data:', error);
+        showCustomAlert(`Error loading predictive data: ${error.message}`, "Data Load Error");
         return null;
+    } finally {
+        showLoadingIndicator(false); // Hide loading indicator
     }
 }
 
+
 /**
- * Renders a Chart.js graph for the given data, including forecast and confidence intervals.
- * @param {HTMLCanvasElement} canvasElement The canvas DOM element.
- * @param {Chart} chartInstance The existing Chart.js instance to destroy/update.
- * @param {Array<object>} historicalData Array of {year, value}.
- * @param {Array<object>} forecastData Array of {year, value, lower_bound, upper_bound}.
- * @param {string} label The label for the data (e.g., 'Sales', 'Engagement').
- * @param {string} chartTitle The title for the chart.
- * @returns {Chart} The new Chart.js instance.
+ * Renders the Chart.js chart for a given metric.
+ * @param {string} chartId The ID of the canvas element.
+ * @param {object} chartInstance The existing chart instance (can be null).
+ * @param {Array<object>} historicalData Array of {year, value} for historical data.
+ * @param {Array<object>} forecastData Array of {year, value, lower_bound, upper_bound} for forecast data.
+ * @param {string} label The label for the chart (e.g., "Combined Engagement").
+ * @param {string} unit The unit for the Y-axis (e.g., "", "$").
+ * @returns {object} The new or updated chart instance.
  */
-function renderChart(canvasElement, chartInstance, historicalData, forecastData, label, chartTitle) {
-    if (!canvasElement) {
-        console.error("Canvas element not found for chart:", chartTitle);
+function renderChart(chartId, chartInstance, historicalData, forecastData, label, unit = '') {
+    const ctx = document.getElementById(chartId)?.getContext('2d');
+    if (!ctx) {
+        console.error(`Canvas with ID '${chartId}' not found.`);
         return null;
     }
 
     if (chartInstance) {
-        chartInstance.destroy();
+        chartInstance.destroy(); // Destroy existing chart instance to prevent memory leaks/overlaps
     }
 
-    // Combine labels from historical and forecast data, ensuring unique and sorted years
-    const allYears = [...new Set([...historicalData.map(d => d.year), ...forecastData.map(d => d.year)])].sort((a, b) => a - b);
-    const labels = allYears.map(String);
+    const allYears = [...new Set([
+        ...historicalData.map(d => d.year),
+        ...forecastData.map(d => d.year)
+    ])].sort((a, b) => a - b);
 
-    const historicalMap = new Map(historicalData.map(d => [String(d.year), d.value]));
-    const forecastMap = new Map(forecastData.map(d => [String(d.year), d.value]));
-    const lowerBoundMap = new Map(forecastData.map(d => [String(d.year), d.lower_bound]));
-    const upperBoundMap = new Map(forecastData.map(d => [String(d.year), d.upper_bound]));
+    const historicalValues = historicalData.map(d => d.value);
+    const forecastValues = forecastData.map(d => d.value);
+    const lowerBounds = forecastData.map(d => d.lower_bound);
+    const upperBounds = forecastData.map(d => d.upper_bound);
 
-    const historicalValues = labels.map(year => historicalMap.has(year) ? historicalMap.get(year) : null);
-    const forecastValues = labels.map(year => forecastMap.has(year) ? forecastMap.get(year) : null);
-    const lowerBounds = labels.map(year => lowerBoundMap.has(year) ? lowerBoundMap.get(year) : null);
-    const upperBounds = labels.map(year => upperBoundMap.has(year) ? upperBoundMap.get(year) : null);
+    const fullDatasetValues = [];
+    const fullLowerBounds = [];
+    const fullUpperBounds = [];
 
-    const ctx = canvasElement.getContext('2d');
-    const newChartInstance = new Chart(ctx, {
+    // Map allYears to corresponding historical or forecast values
+    allYears.forEach(year => {
+        const hist = historicalData.find(d => d.year === year);
+        const forecast = forecastData.find(d => d.year === year);
+
+        if (hist) {
+            fullDatasetValues.push(hist.value);
+            fullLowerBounds.push(null); // No confidence interval for historical data
+            fullUpperBounds.push(null);
+        } else if (forecast) {
+            fullDatasetValues.push(forecast.value);
+            fullLowerBounds.push(forecast.lower_bound);
+            fullUpperBounds.push(forecast.upper_bound);
+        } else {
+            fullDatasetValues.push(null); // No data for this year
+            fullLowerBounds.push(null);
+            fullUpperBounds.push(null);
+        }
+    });
+
+    // Create a dataset for the historical values, padding with nulls for future years
+    const historicalPlotData = allYears.map(year => {
+        const dataPoint = historicalData.find(d => d.year === year);
+        return dataPoint ? dataPoint.value : null;
+    });
+
+    // Create a dataset for the forecast values, padding with nulls for past years
+    const forecastPlotData = allYears.map(year => {
+        const dataPoint = forecastData.find(d => d.year === year);
+        return dataPoint ? dataPoint.value : null;
+    });
+    
+    // Confidence interval data - needs to align with forecastPlotData
+    const confidenceLowerPlotData = allYears.map(year => {
+        const dataPoint = forecastData.find(d => d.year === year);
+        return dataPoint ? dataPoint.lower_bound : null;
+    });
+
+    const confidenceUpperPlotData = allYears.map(year => {
+        const dataPoint = forecastData.find(d => d.year === year);
+        return dataPoint ? dataPoint.upper_bound : null;
+    });
+
+
+    chartInstance = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: labels,
+            labels: allYears,
             datasets: [
                 {
                     label: `Historical ${label}`,
-                    data: historicalValues,
+                    data: historicalPlotData,
                     borderColor: 'rgb(75, 192, 192)',
                     backgroundColor: 'rgba(75, 192, 192, 0.2)',
                     borderWidth: 2,
-                    tension: 0.3,
-                    fill: false,
                     pointRadius: 3,
-                    pointBackgroundColor: 'rgb(75, 192, 192)'
+                    fill: false,
+                    tension: 0.4 // Smooth the line
                 },
                 {
                     label: `Forecasted ${label}`,
-                    data: forecastValues,
-                    borderColor: 'rgb(255, 99, 132)', // Red for forecast
+                    data: forecastPlotData,
+                    borderColor: 'rgb(255, 99, 132)',
                     backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                    borderDash: [5, 5], // Dashed line for forecast
                     borderWidth: 2,
-                    tension: 0.3,
-                    fill: false,
+                    borderDash: [5, 5], // Dashed line for forecast
                     pointRadius: 3,
-                    pointBackgroundColor: 'rgb(255, 99, 132)'
+                    fill: false,
+                    tension: 0.4
                 },
                 {
                     label: 'Lower Bound',
-                    data: lowerBounds,
-                    borderColor: 'rgba(0, 0, 0, 0)', // Invisible line
-                    backgroundColor: 'rgba(75, 192, 192, 0.1)', // Light fill for CI
-                    fill: '-1', // Fill between this and the previous dataset
+                    data: confidenceLowerPlotData,
+                    borderColor: 'rgba(75, 192, 192, 0)', // Transparent border
+                    backgroundColor: 'rgba(75, 192, 192, 0.1)', // Light fill for confidence area
                     pointRadius: 0,
-                    hidden: false // Ensure it's shown for filling
+                    fill: '+1', // Fill from this dataset to the next one
+                    hidden: false // Keep hidden for the fill to work, but no line
                 },
                 {
                     label: 'Upper Bound',
-                    data: upperBounds,
-                    borderColor: 'rgba(0, 0, 0, 0)', // Invisible line
-                    backgroundColor: 'rgba(75, 192, 192, 0.1)', // Light fill for CI
-                    fill: '1', // Fill between this and the next dataset
+                    data: confidenceUpperPlotData,
+                    borderColor: 'rgba(75, 192, 192, 0)', // Transparent border
+                    backgroundColor: 'rgba(75, 192, 192, 0.1)',
                     pointRadius: 0,
-                    hidden: false // Ensure it's shown for filling
+                    fill: '-1', // Fill from this dataset to the previous one
+                    hidden: false // Keep hidden
                 }
             ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: {
-                title: {
-                    display: true,
-                    text: chartTitle,
-                    font: {
-                        size: 18,
-                        weight: 'bold'
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Year'
                     },
-                    color: '#333'
+                    type: 'category', // Ensure years are treated as categories
+                    labels: allYears
                 },
+                y: {
+                    title: {
+                        display: true,
+                        text: `${label} ${unit}`
+                    },
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value, index, values) {
+                            // Format large numbers for readability
+                            if (value >= 1000000) {
+                                return value / 1000000 + 'M';
+                            } else if (value >= 1000) {
+                                return value / 1000 + 'K';
+                            }
+                            return value;
+                        }
+                    }
+                }
+            },
+            plugins: {
                 tooltip: {
-                    mode: 'index',
-                    intersect: false,
                     callbacks: {
                         label: function(context) {
                             let label = context.dataset.label || '';
                             if (label) {
                                 label += ': ';
                             }
-                            label += new Intl.NumberFormat('en-US').format(context.parsed.y);
+                            if (context.parsed.y !== null) {
+                                label += context.parsed.y.toLocaleString();
+                            }
                             return label;
-                        },
-                        // Only show specific tooltips for forecast bounds, not the "Lower Bound" / "Upper Bound" itself
-                        filter: function (tooltipItem) {
-                            return tooltipItem.dataset.label !== 'Lower Bound' && tooltipItem.dataset.label !== 'Upper Bound';
                         }
                     }
                 },
                 legend: {
                     display: true,
+                    position: 'top',
                     labels: {
                         filter: function(item, chart) {
                             // Hide "Lower Bound" and "Upper Bound" from the legend
@@ -183,119 +268,97 @@ function renderChart(canvasElement, chartInstance, historicalData, forecastData,
                         }
                     }
                 }
-            },
-            scales: {
-                x: {
-                    title: {
-                        display: true,
-                        text: 'Year',
-                        color: '#555'
-                    },
-                    grid: {
-                        display: false
-                    }
-                },
-                y: {
-                    title: {
-                        display: true,
-                        text: label,
-                        color: '#555'
-                    },
-                    beginAtZero: true,
-                    ticks: {
-                        callback: function(value) {
-                            return new Intl.NumberFormat('en-US').format(value);
-                        }
-                    }
-                }
             }
         }
     });
+    return chartInstance;
+}
 
-    return newChartInstance;
+
+/**
+ * Hides all visualization containers.
+ */
+function hideAllVisualizations() {
+    document.querySelectorAll('.visualization').forEach(el => {
+        el.classList.add('d-none');
+    });
 }
 
 /**
- * Displays the selected visualization (chart and recommendation).
- * @param {string} visualizationId 'engagement', 'reach', 'sales'.
+ * Displays the selected visualization.
+ * @param {string} metricType The type of metric to display ('engagement', 'reach', 'sales').
  */
-async function showVisualization(visualizationId) {
-    // Hide all visualization containers first
-    document.querySelectorAll('.visualization').forEach(container => {
-        container.classList.add('d-none');
-    });
+async function showVisualization(metricType) {
+    hideAllVisualizations(); // Hide all charts first
+    currentMetricType = metricType; // Update global state
 
-    // Display the selected container
-    const selectedContainer = document.getElementById(`${visualizationId}-container`);
-    if (selectedContainer) {
-        selectedContainer.classList.remove('d-none');
-    } else {
-        console.error("Selected visualization container not found:", visualizationId);
-        showCustomAlert("Error: Visualization container not found.", "Display Error");
-        return;
-    }
+    const container = document.getElementById(`${metricType}-container`);
+    const recommendationElement = document.getElementById(`${metricType}Recommendation`);
+    const chartCanvas = document.getElementById(`${metricType}Chart`);
 
-    // Fetch and render data for the selected visualization
-    // Changed function name to fetchPredictiveData as it now gets forecast
-    const data = await fetchPredictiveData(visualizationId); 
+    if (container) container.classList.remove('d-none'); // Show the relevant container
 
-    const chartCanvas = document.getElementById(`${visualizationId}Chart`);
-    const recommendationElement = document.getElementById(`${visualizationId}Recommendation`);
+    const data = await fetchPredictiveData(metricType, fixedForecastYears); // Use fixedForecastYears
 
-    if (data && data.historical_data) { // Ensure historical_data exists
+    if (data && data.historical_data && data.forecast_data) {
         const historicalData = data.historical_data;
-        const forecastData = data.forecast_data || []; // Ensure forecastData is an array, even if empty
+        const forecastData = data.forecast_data;
         const recommendation = data.recommendation;
-        const message = data.message; 
-
-        if (historicalData.length === 0 && forecastData.length === 0) {
-            if (chartCanvas) {
-                const ctx = chartCanvas.getContext('2d');
-                ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
-                chartCanvas.style.display = 'none';
-            }
-            if (recommendationElement) {
-                recommendationElement.innerHTML = `<em>${message || 'No historical data available to display.'}</em>`;
-            }
-            return; 
-        } else {
-             if (chartCanvas) {
-                chartCanvas.style.display = 'block';
-            }
-        }
 
         let chartLabel = '';
-        let chartTitle = '';
-        if (visualizationId === 'engagement') {
-            chartLabel = 'Combined Engagement'; 
-            chartTitle = 'Historical & Forecasted Combined Engagement'; 
-            engagementChartInstance = renderChart(chartCanvas, engagementChartInstance, historicalData, forecastData, chartLabel, chartTitle);
-        } else if (visualizationId === 'reach') {
-            chartLabel = 'Combined Reach'; 
-            chartTitle = 'Historical & Forecasted Combined Reach'; 
-            reachChartInstance = renderChart(chartCanvas, reachChartInstance, historicalData, forecastData, chartLabel, chartTitle);
-        } else if (visualizationId === 'sales') {
+        let chartUnit = '';
+        let currentChartInstance = null;
+
+        if (metricType === 'engagement') {
+            chartLabel = 'Combined Engagement';
+            chartUnit = '';
+            currentChartInstance = engagementChartInstance;
+        } else if (metricType === 'reach') {
+            chartLabel = 'Combined Reach';
+            chartUnit = '';
+            currentChartInstance = reachChartInstance;
+        } else if (metricType === 'sales') {
             chartLabel = 'Sales Revenue';
-            chartTitle = 'Historical & Forecasted Sales Revenue';
-            salesChartInstance = renderChart(chartCanvas, salesChartInstance, historicalData, forecastData, chartLabel, chartTitle);
+            chartUnit = '$';
+            currentChartInstance = salesChartInstance;
+        }
+
+        // Render the chart
+        const newChartInstance = renderChart(
+            `${metricType}Chart`,
+            currentChartInstance,
+            historicalData,
+            forecastData,
+            chartLabel,
+            chartUnit
+        );
+
+        // Update the global chart instance reference
+        if (metricType === 'engagement') {
+            engagementChartInstance = newChartInstance;
+        } else if (metricType === 'reach') {
+            reachChartInstance = newChartInstance;
+        } else if (metricType === 'sales') {
+            salesChartInstance = newChartInstance;
         }
 
         if (recommendationElement) {
             recommendationElement.textContent = recommendation;
         }
     } else {
+        // If data fetching failed or returned no data, ensure charts are hidden and message is shown
         if (chartCanvas) {
-            if (visualizationId === 'engagement' && engagementChartInstance) {
+            if (metricType === 'engagement' && engagementChartInstance) {
                 engagementChartInstance.destroy();
                 engagementChartInstance = null;
-            } else if (visualizationId === 'reach' && reachChartInstance) {
+            } else if (metricType === 'reach' && reachChartInstance) {
                 reachChartInstance.destroy();
                 reachChartInstance = null;
-            } else if (visualizationId === 'sales' && salesChartInstance) {
+            } else if (metricType === 'sales' && salesChartInstance) {
                 salesChartInstance.destroy();
                 salesChartInstance = null;
             }
-            chartCanvas.style.display = 'none';
+            chartCanvas.style.display = 'none'; // Hide canvas
         }
         if (recommendationElement) {
             recommendationElement.textContent = 'Failed to load predictive data or generate recommendation.';
@@ -303,24 +366,30 @@ async function showVisualization(visualizationId) {
     }
 }
 
+// Function to handle the initial display of the predictive chart
 function initializePredictiveDisplay() {
-    window.addEventListener('tokenAvailable', () => {
-        console.log("Authentication token found (from event listener). Displaying default sales visualization.");
-        showVisualization('sales'); 
-    }, { once: true });
-    
-    if (window.currentUserToken) {
-        console.log("Authentication token already found. Displaying default sales visualization.");
-        showVisualization('sales');
-    } else {
-        console.log("Waiting for tokenAvailable event or token to be set...");
-    }
+    // Check for currentUserToken after auth.js has loaded and authenticated
+    const checkTokenInterval = setInterval(() => {
+        if (window.currentUserToken) {
+            clearInterval(checkTokenInterval);
+            console.log("Authentication token found. Displaying default sales visualization.");
+            // Trigger a default visualization display here, e.g., Sales chart on load:
+            showVisualization(currentMetricType); 
+        } else {
+            console.log("Waiting for authentication token...");
+        }
+    }, 500); // Check every 500ms
 }
 
+
 document.addEventListener('DOMContentLoaded', () => {
+    // Attach event listeners to the cards
     document.getElementById('cardEngagement')?.addEventListener('click', () => showVisualization('engagement'));
     document.getElementById('cardReach')?.addEventListener('click', () => showVisualization('reach'));
     document.getElementById('cardSales')?.addEventListener('click', () => showVisualization('sales'));
 
+    // No event listener needed for the forecast period dropdown as it's removed.
+
+    // Initialize the predictive display
     initializePredictiveDisplay();
 });

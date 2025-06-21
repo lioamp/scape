@@ -11,11 +11,10 @@ from functools import wraps
 import uuid
 import logging
 import urllib.parse
-from pmdarima import auto_arima # For ARIMA model
-import numpy as np # For numerical operations
-import json # For JSON serialization of results
-from sklearn.linear_model import LinearRegression # For linear regression fallback
-import asyncio # For async functions - needed if using truly async HTTP clients or other async operations
+from pmdarima import auto_arima
+import numpy as np
+import json
+from sklearn.linear_model import LinearRegression
 
 app = Flask(__name__)
 CORS(app)
@@ -603,10 +602,18 @@ def perform_arima_forecast(series, forecast_periods):
     Returns forecasted values, lower bounds, upper bounds, and the actual last historical year.
     """
     logging.info(f"Attempting ARIMA forecast for {len(series)} data points.")
-    if len(series) < 5: # ARIMA needs a reasonable amount of data
-        logging.warning("Not enough data for ARIMA. Falling back to Linear Regression.")
-        # Ensure that when falling back, it still returns the last historical year as an integer
-        return perform_linear_regression_forecast(series, forecast_periods), series.index.max().year
+    
+    # Ensure there's at least one data point to determine the last historical year,
+    # even if ARIMA can't run.
+    last_historical_year = series.index.max().year if not series.empty else None
+
+    # Check for minimum data points for ARIMA
+    # pmdarima's auto_arima generally needs at least 5 data points (years) for meaningful results.
+    # If less than 2, perform_linear_regression_forecast will also warn.
+    if len(series) < 5: 
+        logging.warning(f"Insufficient data ({len(series)} points) for robust ARIMA. Falling back to Linear Regression.")
+        # Pass the original series to linear regression for it to handle its own data requirements
+        return perform_linear_regression_forecast(series, forecast_periods), last_historical_year
 
     try:
         # Fit auto_arima model
@@ -653,7 +660,7 @@ def perform_arima_forecast(series, forecast_periods):
         logging.error(f"Error during ARIMA forecast: {e}", exc_info=True)
         logging.warning("ARIMA failed. Falling back to Linear Regression.")
         # Ensure that when falling back, it still returns the last historical year as an integer
-        return perform_linear_regression_forecast(series, forecast_periods), series.index.max().year
+        return perform_linear_regression_forecast(series, forecast_periods), last_historical_year
 
 def perform_linear_regression_forecast(series, forecast_periods):
     """
@@ -753,6 +760,9 @@ def predictive_analytics():
             metric_name = "Sales Revenue"
             sales_records = fetch_table("sales", select="date,revenue", order="date.asc")
             df = pd.DataFrame(sales_records)
+            # Check if 'date' column exists before processing
+            if 'date' not in df.columns:
+                return jsonify({"error": f"Missing 'date' column in sales data for {metric_type}. Please check your uploaded sales data for a 'date' column."}), 400
             df['date'] = pd.to_datetime(df['date'], errors='coerce') # Coerce errors will turn invalid dates into NaT
             df = df.dropna(subset=['date']) # Drop rows where date parsing failed
             df['revenue'] = pd.to_numeric(df['revenue'], errors='coerce').fillna(0)
@@ -762,33 +772,43 @@ def predictive_analytics():
         elif metric_type == 'engagement' or metric_type == 'reach':
             metric_name = "Engagement" if metric_type == 'engagement' else "Reach"
             
-            # --- MODIFIED LOGIC: EXCLUDE TIKTOK DATA ---
-            # tiktok_records = fetch_table("tiktokdata", select="date,views,likes,comments,shares", order="date.asc")
+            tiktok_records = fetch_table("tiktokdata", select="date,views,likes,comments,shares", order="date.asc")
             facebook_records = fetch_table("facebookdata", select="date,likes,comments,shares,reach", order="date.asc")
             
             combined_data = []
             
-            # # Include TikTok data only if desired in the future
-            # for item in tiktok_records:
-            #     combined_data.append({
-            #         "date": item.get('date'),
-            #         "likes": item.get('likes', 0),
-            #         "comments": item.get('comments', 0),
-            #         "shares": item.get('shares', 0),
-            #         "views": item.get('views', 0) # TikTok uses 'views'
-            #     })
+            # Include TikTok data
+            for item in tiktok_records:
+                # Ensure 'date' exists in item before trying to access
+                if 'date' in item:
+                    combined_data.append({
+                        "date": item.get('date'),
+                        "likes": item.get('likes', 0),
+                        "comments": item.get('comments', 0),
+                        "shares": item.get('shares', 0),
+                        "views": item.get('views', 0) # TikTok uses 'views'
+                    })
+                else:
+                    logging.warning(f"TikTok record missing 'date' key: {item}")
             
             for item in facebook_records:
-                combined_data.append({
-                    "date": item.get('date'),
-                    "likes": item.get('likes', 0),
-                    "comments": item.get('comments', 0),
-                    "shares": item.get('shares', 0),
-                    "views": item.get('reach', 0) # Facebook uses 'reach'
-                })
-            # --- END MODIFIED LOGIC ---
+                # Ensure 'date' exists in item before trying to access
+                if 'date' in item:
+                    combined_data.append({
+                        "date": item.get('date'),
+                        "likes": item.get('likes', 0),
+                        "comments": item.get('comments', 0),
+                        "shares": item.get('shares', 0),
+                        "views": item.get('reach', 0) # Facebook uses 'reach'
+                    })
+                else:
+                    logging.warning(f"Facebook record missing 'date' key: {item}")
+
 
             df = pd.DataFrame(combined_data)
+            # Check if 'date' column exists after combining data before processing
+            if 'date' not in df.columns:
+                return jsonify({"error": f"Missing 'date' column in combined data for {metric_type}. Please check your uploaded TikTok and Facebook data for a 'date' column."}), 400
             df['date'] = pd.to_datetime(df['date'], errors='coerce') # Coerce errors will turn invalid dates into NaT
             df = df.dropna(subset=['date']) # Drop rows where date parsing failed
             
@@ -809,7 +829,7 @@ def predictive_analytics():
         historical_series_annual = historical_series.resample('YE').sum() 
         logging.info(f"Initial annual historical series before dropping NaNs:\n{historical_series_annual}")
         
-        # --- REVERTED LOGIC: Exclude INCOMPLETE current year data from historical for forecasting ---
+        # --- LOGIC TO Exclude INCOMPLETE current year data from historical for forecasting ---
         current_calendar_date = datetime.now()
         current_calendar_year = current_calendar_date.year
 
@@ -840,32 +860,20 @@ def predictive_analytics():
                 "recommendation": f"Not enough *complete* historical data (at least 2 full years) to generate a forecast for {metric_name}. Please upload more complete historical data.",
                 "message": "Not enough complete historical data for forecasting."
             }), 200
-        # --- END REVERTED LOGIC ---
+        # --- END LOGIC ---
 
         last_historical_year_for_forecast_model = historical_series_for_forecast.index.max().year 
-        current_calendar_year = datetime.now().year
         
-        # Calculate how many years are needed to reach at least (current_year + 3)
-        MIN_FORECAST_YEARS = 3
-        
-        # The forecast should start from the year *after* last_historical_year_for_forecast_model.
-        # It should extend to cover at least MIN_FORECAST_YEARS from the *current_calendar_year*.
-        target_forecast_end_year = current_calendar_year + MIN_FORECAST_YEARS
-        
-        forecast_periods = target_forecast_end_year - last_historical_year_for_forecast_model
-        
-        # If the calculated forecast_periods is zero or negative (meaning last historical year is
-        # already at or beyond the target forecast end year), forecast at least 1 period.
-        if forecast_periods <= 0:
-            forecast_periods = 1
-            logging.info(f"Target forecast years already covered by historical data. Adjusted forecast_periods to 1 for next year prediction.")
+        # Fixed forecast periods to 3 years
+        forecast_periods = 3 
 
         logging.info(f"Forecasting {forecast_periods} periods starting from {last_historical_year_for_forecast_model + 1}.")
 
-        forecast_results, actual_last_historical_year_from_model = perform_arima_forecast(historical_series_for_forecast, forecast_periods)
+        # Use ARIMA for all forecasts (with Linear Regression fallback inside perform_arima_forecast)
+        forecast_results, _ = perform_arima_forecast(historical_series_for_forecast, forecast_periods)
         
         # Ensure that the years in forecast_results align with the intended future sequence.
-        # This handles cases where ARIMA might return different indices.
+        # This handles cases where models might return different indices.
         if forecast_results:
             # Reassign years to be consecutive starting from last_historical_year_for_forecast_model + 1
             for i in range(len(forecast_results)):
