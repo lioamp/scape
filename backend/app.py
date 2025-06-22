@@ -15,6 +15,7 @@ from pmdarima import auto_arima
 import numpy as np
 import json
 from sklearn.linear_model import LinearRegression
+from scipy.stats import spearmanr # Import for Spearman correlation
 
 app = Flask(__name__)
 CORS(app)
@@ -36,7 +37,9 @@ try:
     firebase_admin.get_app()
     logging.info("Firebase Admin SDK already initialized.")
 except ValueError:
-    service_account_key_path = r'C:\Users\hrczi\OneDrive\Documents\scape\backend\serviceAccountKey.json'
+    # IMPORTANT: Replace this with the actual path to your serviceAccountKey.json
+    # This path will need to be configured on the server where the Flask app runs.
+    service_account_key_path = './serviceAccountKey.json' 
     
     try:
         cred = credentials.Certificate(service_account_key_path)
@@ -904,6 +907,155 @@ def predictive_analytics():
         logging.error(f"Server error during predictive analytics for {metric_type}: {e}", exc_info=True)
         return jsonify({"error": f"An error occurred during predictive analytics for {metric_name}: {str(e)}"}), 500
 
+@app.route('/api/correlation-analysis', methods=['GET'])
+@verify_token
+def correlation_analysis():
+    """
+    API endpoint for Spearman's Rank Correlation analysis.
+    Calculates correlations between Engagement, Reach, and Sales.
+    Provides automated recommendations based on correlation strength.
+    Also returns the underlying data for scatter plotting.
+    """
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+
+    # Fetch data from all relevant tables
+    tiktok_records = fetch_table("tiktokdata", select="date,views,likes,comments,shares", start_date=start_date_str, end_date=end_date_str)
+    facebook_records = fetch_table("facebookdata", select="date,likes,comments,shares,reach", start_date=start_date_str, end_date=end_date_str)
+    sales_records = fetch_table("sales", select="date,revenue", start_date=start_date_str, end_date=end_date_str)
+
+    # Prepare dataframes
+    df_tiktok = pd.DataFrame(tiktok_records)
+    df_facebook = pd.DataFrame(facebook_records)
+    df_sales = pd.DataFrame(sales_records)
+
+    # Convert 'date' columns to datetime and set as index for all DFs
+    for df in [df_tiktok, df_facebook, df_sales]:
+        if 'date' in df.columns:
+            df['date'] = pd.to_datetime(df['date'], errors='coerce')
+            df.set_index('date', inplace=True)
+        else:
+            logging.warning(f"DataFrame is missing 'date' column.")
+            continue
+    
+    # Aggregate social media data
+    combined_social_df = pd.DataFrame()
+    
+    if not df_tiktok.empty:
+        df_tiktok['engagement'] = df_tiktok['likes'].fillna(0) + df_tiktok['comments'].fillna(0) + df_tiktok['shares'].fillna(0)
+        df_tiktok['reach'] = df_tiktok['views'].fillna(0)
+        tiktok_daily_agg = df_tiktok.groupby(df_tiktok.index).agg({'engagement': 'sum', 'reach': 'sum'})
+        combined_social_df = pd.concat([combined_social_df, tiktok_daily_agg])
+
+    if not df_facebook.empty:
+        df_facebook['engagement'] = df_facebook['likes'].fillna(0) + df_facebook['comments'].fillna(0) + df_facebook['shares'].fillna(0)
+        df_facebook['reach'] = df_facebook['reach'].fillna(0)
+        facebook_daily_agg = df_facebook.groupby(df_facebook.index).agg({'engagement': 'sum', 'reach': 'sum'})
+        combined_social_df = pd.concat([combined_social_df, facebook_daily_agg])
+
+    # If both DFs contributed, re-aggregate to ensure unique daily sums
+    if not combined_social_df.empty:
+        combined_social_df = combined_social_df.groupby(combined_social_df.index).agg({'engagement': 'sum', 'reach': 'sum'})
+
+    # Aggregate sales data
+    if not df_sales.empty:
+        df_sales['revenue'] = df_sales['revenue'].fillna(0)
+        sales_daily_agg = df_sales.groupby(df_sales.index).agg({'revenue': 'sum'})
+    else:
+        sales_daily_agg = pd.DataFrame(columns=['revenue'])
+
+    # Merge aggregated dataframes on date
+    merged_df = pd.merge(combined_social_df, sales_daily_agg, left_index=True, right_index=True, how='inner')
+    merged_df = merged_df.fillna(0) # Fill any remaining NaNs with 0
+
+    # Prepare data for scatter plots
+    # Convert DataFrame to a list of dicts, with dates formatted as strings
+    chart_data = []
+    if not merged_df.empty:
+        merged_df_sorted = merged_df.sort_index() # Ensure data is sorted by date
+        for index, row in merged_df_sorted.iterrows():
+            chart_data.append({
+                'date': index.strftime('%Y-%m-%d'), # Format date for Chart.js
+                'engagement': row.get('engagement', 0),
+                'reach': row.get('reach', 0),
+                'sales': row.get('revenue', 0)
+            })
+
+    # Check if there's enough data for correlation
+    min_data_points = 5 # A reasonable minimum for correlation analysis
+    if len(merged_df) < min_data_points:
+        return jsonify({
+            "message": f"Not enough common data points ({len(merged_df)} found, {min_data_points} required) "
+                       "across all metrics for correlation analysis within the selected date range. "
+                       "Please adjust your date range or upload more data.",
+            "correlations": {},
+            "recommendations": {
+                "engage_reach": "Insufficient data to provide a recommendation for Engagement/Reach correlation.",
+                "engage_sales": "Insufficient data to provide a recommendation for Engagement/Sales correlation.",
+                "reach_sales": "Insufficient data to provide a recommendation for Reach/Sales correlation."
+            },
+            "chart_data": chart_data # Still return available data even if not enough for correlation
+        }), 200
+
+    correlations = {}
+    recommendations = {}
+
+    def get_recommendation_text(correlation, var1_name, var2_name):
+        if pd.isna(correlation):
+            return f"Not enough data to calculate a meaningful correlation between {var1_name} and {var2_name}."
+        
+        correlation_abs = abs(correlation)
+        if correlation_abs >= 0.7:
+            strength = "strong"
+            action = "significantly"
+        elif correlation_abs >= 0.3:
+            strength = "moderate"
+            action = "tend to"
+        else:
+            strength = "weak or negligible"
+            action = "do not significantly"
+
+        if correlation > 0.3:
+            direction = "positive"
+            message = f"There is a {strength} {direction} correlation between {var1_name} and {var2_name} (Correlation: {correlation:.2f}). This suggests that as {var1_name} increases, {var2_name} {action} increase. Consider optimizing strategies that synergistically boost both."
+        elif correlation < -0.3:
+            direction = "negative"
+            message = f"There is a {strength} {direction} correlation between {var1_name} and {var2_name} (Correlation: {correlation:.2f}). This indicates that as {var1_name} increases, {var2_name} {action} decrease. You should investigate potential conflicts or inverse relationships and adjust your campaign strategy accordingly."
+        else:
+            message = f"There is a {strength} correlation between {var1_name} and {var2_name} (Correlation: {correlation:.2f}). This suggests that changes in {var1_name} {action} influence {var2_name} in a direct or inverse manner. It might be beneficial to explore other factors or refine your approach."
+        return message
+
+    # Calculate correlations and generate recommendations
+    if 'engagement' in merged_df.columns and 'reach' in merged_df.columns:
+        corr_er, _ = spearmanr(merged_df['engagement'], merged_df['reach'])
+        correlations['engage_reach'] = round(corr_er, 2)
+        recommendations['engage_reach'] = get_recommendation_text(corr_er, "Engagement", "Reach")
+    else:
+        correlations['engage_reach'] = None
+        recommendations['engage_reach'] = "Missing 'engagement' or 'reach' data for correlation analysis."
+
+    if 'engagement' in merged_df.columns and 'revenue' in merged_df.columns:
+        corr_es, _ = spearmanr(merged_df['engagement'], merged_df['revenue'])
+        correlations['engage_sales'] = round(corr_es, 2)
+        recommendations['engage_sales'] = get_recommendation_text(corr_es, "Engagement", "Sales")
+    else:
+        correlations['engage_sales'] = None
+        recommendations['engage_sales'] = "Missing 'engagement' or 'sales' data for correlation analysis."
+
+    if 'reach' in merged_df.columns and 'revenue' in merged_df.columns:
+        corr_rs, _ = spearmanr(merged_df['reach'], merged_df['revenue'])
+        correlations['reach_sales'] = round(corr_rs, 2)
+        recommendations['reach_sales'] = get_recommendation_text(corr_rs, "Reach", "Sales")
+    else:
+        correlations['reach_sales'] = None
+        recommendations['reach_sales'] = "Missing 'reach' or 'sales' data for correlation analysis."
+
+    return jsonify({
+        "message": "Correlation analysis successful.",
+        "correlations": correlations,
+        "recommendations": recommendations,
+        "chart_data": chart_data # Include the data for plotting
+    })
 
 if __name__ == "__main__":
     app.run(debug=True, host='127.0.0.1', port=5000)
