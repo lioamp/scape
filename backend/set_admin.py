@@ -1,7 +1,7 @@
 import firebase_admin
 from firebase_admin import credentials, auth
 
-cred = credentials.Certificate(r'C:\Users\Carlos\Documents\scape\backend\serviceAccountKey.json')
+cred = credentials.Certificate(r'C:\Users\hrczi\OneDrive\Documents\scape\backend\serviceAccountKey.json')
 firebase_admin.initialize_app(cred)
 
 def set_admin(uid):
