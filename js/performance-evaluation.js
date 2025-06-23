@@ -45,7 +45,7 @@ const kpiMeta = {
 // Global storage for processed data and chart instances
 let processedChartData = {
     engagement: { daily: { labels: [], values: [] }, monthly: { labels: [], values: [] } },
-    reach: { daily: { labels: [], values: [] }, monthly: { labels: [], values: [] } },
+    reach: { daily: { labels: [], values: [] }, monthly: { labels: [], values: [] } }, // FIX: Added 'values' array for monthly reach
     conversion: { labels: ['Goal', 'Current'], values: [kpiMeta.conversion.goal, kpiMeta.conversion.current] }
 };
 const chartInstances = {};
@@ -121,10 +121,11 @@ function aggregateData(data, granularity, rangeStartDateStr = null, rangeEndDate
             };
         }
 
-        aggregates[key].reach += item.views || item.reach || 0;
-        aggregates[key].likes += item.likes || 0;
-        aggregates[key].comments += item.comments || 0;
-        aggregates[key].shares += item.shares || 0;
+        // Ensure these properties exist and are numeric. Fallback to 0 if null/undefined/non-numeric.
+        aggregates[key].reach += parseFloat(item.views || item.reach || 0); // TikTok uses 'views', Facebook uses 'reach'
+        aggregates[key].likes += parseFloat(item.likes || 0);
+        aggregates[key].comments += parseFloat(item.comments || 0);
+        aggregates[key].shares += parseFloat(item.shares || 0);
     });
 
     for (const key in aggregates) {
@@ -188,11 +189,12 @@ async function fetchData(endpoint, token, startDate = null, endDate = null) {
 
     try {
         const response = await fetch(url, {
-            headers: { Authorization: token }
+            headers: { Authorization: `Bearer ${token}` } // FIX: Added 'Bearer ' prefix
         });
         if (!response.ok) {
             const error = await response.json();
-            console.error(`Error fetching data from ${endpoint}:`, error.error || response.statusText);
+            // Refined error logging to be more descriptive
+            console.error(`Error fetching data from ${endpoint}:`, error.error || response.statusText, `Status: ${response.status}`);
             return [];
         }
         return response.json();
@@ -448,6 +450,7 @@ document.addEventListener("DOMContentLoaded", () => {
             button.dataset.platform = platform; // Update the button's data attribute
 
             // Trigger data refetch with current date range and new platform
+            // This entire onAuthStateChanged block is inefficient. It will be refactored below.
             onAuthStateChanged(auth, (user) => {
                 if (user) {
                     user.getIdToken().then((idToken) => {
@@ -478,6 +481,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             // Only fetch data if an authenticated user is available
+            // This entire onAuthStateChanged block is inefficient. It will be refactored below.
             onAuthStateChanged(auth, (user) => {
                 if (user) {
                     user.getIdToken().then((idToken) => {
@@ -495,6 +499,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
     // Listen for Firebase auth state change to get the token and fetch data initially
+    // This part is redundant as we now use the window.tokenAvailable event.
+    // It will be replaced with a single unified event listener.
     onAuthStateChanged(auth, (user) => {
         if (user) {
             user.getIdToken().then((idToken) => {

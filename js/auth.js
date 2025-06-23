@@ -19,10 +19,73 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-// Global variable to store current user role
+// Global variable to store current user role and token
 let currentUserRole = "Other";
 let currentAuthUser = null; // Store the authenticated user object
 let currentUserClaims = null; // Store the user's claims
+
+// --- NEW: Define window.currentUserTokenPromise ---
+// This promise will resolve with the user's ID token when authentication is ready.
+// It uses a deferred pattern, resolving or rejecting when onAuthStateChanged provides a user.
+window.currentUserTokenPromise = new Promise((resolve, reject) => {
+    // onAuthStateChanged is the primary listener for Firebase auth state changes.
+    // It's called immediately with the current user's state, and then again whenever that state changes.
+    onAuthStateChanged(auth, async (user) => {
+        currentAuthUser = user; // Store the user object globally
+
+        if (user) {
+            // User is signed in. Get their ID token.
+            try {
+                const idTokenResult = await getIdTokenResult(user);
+                currentUserClaims = idTokenResult.claims; // Store claims globally
+                const token = await user.getIdToken(); // Get the actual ID token
+                window.currentUserToken = token; // Also set the direct global variable
+
+                // Determine user role based on claims
+                if (currentUserClaims.admin === true) {
+                    currentUserRole = "Admin";
+                } else if (currentUserClaims.marketingTeam === true) {
+                    currentUserRole = "Marketing Team";
+                } else if (currentUserClaims.socialMediaManager === true) {
+                    currentUserRole = "Social Media Manager";
+                } else {
+                    currentUserRole = "Other";
+                }
+
+                // Resolve the promise with the token
+                resolve(token);
+
+                // Update UI elements if sidebar is already loaded, otherwise it will be updated
+                // when 'sidebarLoaded' event fires.
+                updateAdminUI(); 
+
+                // Dispatch event (existing logic)
+                const tokenAvailableEvent = new CustomEvent('tokenAvailable', {
+                    detail: { token: window.currentUserToken, userRole: currentUserRole }
+                });
+                window.dispatchEvent(tokenAvailableEvent);
+
+            } catch (error) {
+                console.error("Error retrieving role claims or ID token:", error);
+                currentUserRole = "Other"; // Default role on error
+                currentUserClaims = null; // Clear claims on error
+                window.currentUserToken = null; // Clear token on error
+                reject(error); // Reject the promise on error
+                updateAdminUI(); // Ensure UI is hidden if claims fail
+            }
+        } else {
+            // User is signed out.
+            window.location.href = "index.html"; // Redirect to login page
+            currentUserRole = "Other"; // Reset role
+            currentUserClaims = null; // Clear claims
+            window.currentUserToken = null; // Clear token
+            resolve(null); // Resolve the promise with null if no user (or an empty string if preferred)
+            updateAdminUI(); // Hide UI elements if logged out
+        }
+    });
+});
+// --- END NEW ---
+
 
 // Make logout globally callable
 window.logout = () => {
@@ -74,51 +137,6 @@ function updateAdminUI() {
         console.warn("Upload section not found.");
     }
 }
-
-
-// Auth & Role Check
-onAuthStateChanged(auth, async (user) => {
-  currentAuthUser = user; // Store the user object globally
-
-  if (!user) {
-    window.location.href = "index.html";
-    currentUserRole = "Other"; // Reset role
-    currentUserClaims = null; // Clear claims
-    updateAdminUI(); // Hide UI elements if logged out
-    return;
-  }
-
-  const name = user.displayName || user.email || "User";
-  const welcomeEl = document.getElementById("welcome-message");
-  if (welcomeEl) {
-    welcomeEl.textContent = `Welcome, ${name}!`;
-  }
-
-  try {
-    const idTokenResult = await getIdTokenResult(user);
-    currentUserClaims = idTokenResult.claims; // Store claims globally
-
-    if (currentUserClaims.admin === true) {
-      currentUserRole = "Admin";
-    } else if (currentUserClaims.marketingTeam === true) {
-      currentUserRole = "Marketing Team";
-    } else if (currentUserClaims.socialMediaManager === true) {
-      currentUserRole = "Social Media Manager";
-    } else {
-      currentUserRole = "Other";
-    }
-
-    // After auth state and claims are determined, try to update UI
-    // This will handle cases where auth resolves before sidebar loads.
-    updateAdminUI();
-
-  } catch (error) {
-    console.error("Error retrieving role claims:", error);
-    currentUserRole = "Other"; // Default role on error
-    currentUserClaims = null; // Clear claims on error
-    updateAdminUI(); // Ensure UI is hidden if claims fail
-  }
-});
 
 // Listen for the custom event dispatched by loadSidebar.js
 // This ensures that `updateAdminUI` is called once the sidebar elements are in the DOM.

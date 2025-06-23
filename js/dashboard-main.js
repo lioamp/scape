@@ -275,6 +275,7 @@ async function renderTopPerformers(timeRange) { // Added timeRange parameter
 
 /**
  * Main function to render all charts on the dashboard based on the selected platform and time range.
+ * This function is now called AFTER the authentication token is available.
  * @param {string} platform - The platform to display data for ('tiktok', 'facebook', or 'all').
  * @param {string} timeRange - The time range to filter data ('last3months', 'last6months', 'lastYear', 'allTime').
  */
@@ -331,10 +332,23 @@ async function renderAllCharts(platform = 'all', timeRange = 'lastYear') {
     }
 }
 
-// Run after DOM is fully loaded
+// Run after DOM is fully loaded, but wait for the authentication token
 document.addEventListener("DOMContentLoaded", () => {
-    // Initial render with 'all' platforms selected and 'lastYear' time range by default
-    renderAllCharts('all', 'lastYear');
+    // Listen for the custom event from auth.js that signals token readiness
+    window.addEventListener('tokenAvailable', () => {
+        console.log("Token available (from event listener). Initializing dashboard data fetches.");
+        // Initial render with 'all' platforms selected and 'lastYear' time range by default
+        renderAllCharts('all', 'lastYear');
+    }, { once: true }); // Use { once: true } to ensure it only runs once
+
+    // Also, check if the token is already available (e.g., on subsequent page loads or after a quick login)
+    // This handles cases where auth.js might load and dispatch the token event before this listener is fully set up.
+    if (window.currentUserToken) {
+        console.log("Authentication token already found. Initializing dashboard data fetches immediately.");
+        renderAllCharts('all', 'lastYear');
+    } else {
+        console.log("Waiting for tokenAvailable event to initialize dashboard data...");
+    }
 
     // Add event listener for the platform filter dropdown
     const platformFilterDropdown = document.getElementById('platformFilterDropdown');
