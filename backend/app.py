@@ -17,11 +17,9 @@ import json
 from sklearn.linear_model import LinearRegression
 from scipy.stats import spearmanr # Import for Spearman correlation
 import os # Make sure os is imported for environment variables
-
-# --- ADD THESE TWO LINES HERE ---
 from dotenv import load_dotenv
 load_dotenv()
-# --------------------------------
+
 
 app = Flask(__name__)
 CORS(app)
