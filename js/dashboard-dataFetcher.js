@@ -178,7 +178,7 @@ export async function fetchSalesChartData(timeRange) {
 // Function to fetch top performers data
 export async function fetchTopPerformersData(timeRange) { // Added timeRange parameter
     const CACHE_KEY = `topPerformersData_${timeRange}`; // Updated cache key to include timeRange
-    const CACHE_EXPIRATION_MS = 5 * 60 * 1000; // 5 minutes
+    const CACHE_EXPIRATION_MS = 5 * 1000; // 5 seconds
 
     try {
         const token = window.currentUserToken; // Get token for top performers data too
