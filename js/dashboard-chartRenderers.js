@@ -249,9 +249,7 @@ export function renderSalesChart(labels, salesData) {
                     ticks: {
                         ...commonOptions.scales.y.ticks,
                         callback: function(value) {
-                             // Format large numbers for Y-axis with PHP currency symbol
-                            if (value >= 1000000) return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', notation: 'compact', compactDisplay: 'short' }).format(value);
-                            if (value >= 1000) return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', notation: 'compact', compactDisplay: 'short' }).format(value);
+                             // Always format with currency and no decimal places for sales chart
                             return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 0 }).format(value);
                         }
                     }
