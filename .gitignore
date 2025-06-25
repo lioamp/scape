@@ -1,4 +1,32 @@
-backend\venv\
-backend\serviceAccountKey.json
-backend\set_admin.py
-backend\.env
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual Environment
+# Ignores the 'venv' folder specifically inside the 'backend' directory
+backend/venv/
+# If you happen to have an 'env' folder (less common but good to cover)
+backend/env/
+lib/ # If a lib folder is generated inside venv that needs ignoring
+
+# Logs
+*.log
+*.log.[0-9]*
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Operating System
+.DS_Store # macOS specific
+
+# Project-specific sensitive files/folders
+# Ignores the '.env' file specifically inside the 'backend' directory
+backend/.env
+# Ignores your Firebase service account key file inside 'backend'
+backend/serviceAccountKey.json
+
+# Node modules (if you have a frontend project with npm)
+node_modules/
+npm-debug.log
