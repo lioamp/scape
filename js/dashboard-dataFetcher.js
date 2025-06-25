@@ -136,7 +136,8 @@ export async function fetchSalesChartData(timeRange) {
                 startDate = new Date(now.getFullYear(), now.getMonth() - 5, 1);
                 break;
             case 'lastYear':
-                startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+                // For 'lastYear', fetch data from the 1st day of the current month, one year ago.
+                startDate = new Date(now.getFullYear() - 1, now.getMonth(), 1); 
                 break;
             case 'allTime':
             default:
@@ -209,7 +210,7 @@ export async function fetchTopPerformersData(timeRange) { // Added timeRange par
                 startDate = new Date(now.getFullYear(), now.getMonth() - 5, 1);
                 break;
             case 'lastYear':
-                startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+                startDate = new Date(now.getFullYear() - 1, now.getMonth(), 1); // Consistent with main.js now
                 break;
             case 'allTime':
             default:
