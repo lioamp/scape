@@ -18,6 +18,11 @@ from sklearn.linear_model import LinearRegression
 from scipy.stats import spearmanr # Import for Spearman correlation
 import os # Make sure os is imported for environment variables
 
+# --- ADD THESE TWO LINES HERE ---
+from dotenv import load_dotenv
+load_dotenv()
+# --------------------------------
+
 app = Flask(__name__)
 CORS(app)
 
@@ -38,7 +43,6 @@ HEADERS = {
 # e.g., on Windows: set FIREBASE_ADMIN_SDK_KEY_PATH=C:\path\to\your\serviceAccountKey.json
 # on Linux/macOS: export FIREBASE_ADMIN_SDK_KEY_PATH=/path/to/your/serviceAccountKey.json
 service_account_key_path = os.environ.get('FIREBASE_ADMIN_SDK_KEY_PATH')
-
 if not service_account_key_path:
     logging.error("FIREBASE_ADMIN_SDK_KEY_PATH environment variable is not set. Firebase Admin SDK will not initialize.")
     print("CRITICAL ERROR: FIREBASE_ADMIN_SDK_KEY_PATH environment variable is not set.")
