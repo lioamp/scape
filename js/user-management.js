@@ -15,14 +15,15 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
 let currentUserUid = null;
-let currentUserToken = null;
+let currentUserToken = null; // This holds just the ID token string
 
 onAuthStateChanged(auth, async (user) => {
     if (!user) {
         window.location.href = "index.html";
     } else {
         currentUserUid = user.uid;
-        currentUserToken = await getIdToken(user, true);
+        // Get the ID token, forcing a refresh to get latest claims if any
+        currentUserToken = await getIdToken(user, true); 
         await fetchUsers(currentUserToken);
     }
 });
@@ -33,18 +34,29 @@ window.logout = () => {
             window.location.href = "index.html";
         })
         .catch((error) => {
-            alert("Logout error: " + error.message);
+            // Using console.error instead of alert for better debugging
+            console.error("Logout error:", error);
+            alert("Logout error: " + error.message); 
         });
 };
 
 async function fetchUsers(token) {
     try {
         const response = await fetch("http://localhost:5000/api/users", {
-            headers: { Authorization: token }
+            // FIX: Prepend "Bearer " to the token
+            headers: { Authorization: `Bearer ${token}` } 
         });
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || "Failed to fetch users");
+            let errorMessage = "Failed to fetch users";
+            try {
+                // Attempt to parse error response from backend
+                const errorData = await response.json();
+                errorMessage = errorData.error || errorData.message || `HTTP error! Status: ${response.status}`;
+            } catch (jsonError) {
+                errorMessage = `HTTP error! Status: ${response.status}. Could not parse error response.`;
+                console.error("Error parsing backend error response:", jsonError);
+            }
+            throw new Error(errorMessage);
         }
         const users = await response.json();
         populateUserTable(users);
@@ -55,8 +67,6 @@ async function fetchUsers(token) {
 }
 
 function getUserRole(custom_claims) {
-    // custom_claims example:
-    // { admin: true } or { marketingTeam: true } or { socialMediaManager: true }
     if (!custom_claims) return null;
     if (custom_claims.admin) return "admin";
     if (custom_claims.marketingTeam) return "marketingTeam";
@@ -106,11 +116,17 @@ function populateUserTable(users) {
         // Disable delete if:
         // 1. This user is the current user (self)
         // 2. The current user is an admin and the target user is also an admin
+        // Note: The logic for "Admin accounts cannot delete other Admins" might be too restrictive if you want super-admins to manage all admins.
+        // If an admin should be able to delete another admin, remove `(currentUserRole === "admin" && role === "admin")`
         if (user.uid === currentUserUid || 
-            (currentUserRole === "admin" && role === "admin")) {
+            (currentUserRole === "admin" && role === "admin" && user.uid !== currentUserUid)) {
             deleteBtn.disabled = true;
-            deleteBtn.title = "Admin accounts cannot delete other Admins.";
+            deleteBtn.title = "Admin accounts cannot delete their own account or other Admins (if you are an Admin)."; // Clarified tooltip
+        } else if (user.uid === currentUserUid) {
+            deleteBtn.disabled = true;
+            deleteBtn.title = "You cannot delete your own account.";
         }
+
 
         tbody.appendChild(tr);
     });
@@ -130,7 +146,8 @@ function attachTableEventListeners() {
     document.querySelectorAll(".delete-btn").forEach(btn => {
         btn.onclick = async (e) => {
             const tr = e.target.closest("tr");
-            if (confirm("Are you sure you want to delete this user?")) {
+            // Replace confirm with a custom modal for better UX
+            if (window.confirm("Are you sure you want to delete this user?")) { // Using window.confirm for now as per previous discussion
                 await deleteUser(tr.dataset.uid);
             }
         };
@@ -163,7 +180,8 @@ async function saveUserChanges(tr) {
             method: "PUT",
             headers: {
                 "Content-Type": "application/json",
-                Authorization: currentUserToken
+                // FIX: Prepend "Bearer " to the token
+                Authorization: `Bearer ${currentUserToken}` 
             },
             body: JSON.stringify({
                 display_name: displayName,
@@ -171,8 +189,15 @@ async function saveUserChanges(tr) {
             })
         });
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || "Failed to update user");
+            let errorMessage = "Failed to update user";
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.error || errorData.message || `HTTP error! Status: ${response.status}`;
+            } catch (jsonError) {
+                errorMessage = `HTTP error! Status: ${response.status}. Could not parse error response.`;
+                console.error("Error parsing backend error response:", jsonError);
+            }
+            throw new Error(errorMessage);
         }
         alert("User updated successfully.");
     } catch (error) {
@@ -185,11 +210,21 @@ async function deleteUser(uid) {
     try {
         const response = await fetch(`http://localhost:5000/api/users/${uid}`, {
             method: "DELETE",
-            headers: { Authorization: currentUserToken }
+            headers: { 
+                // FIX: Prepend "Bearer " to the token
+                Authorization: `Bearer ${currentUserToken}` 
+            }
         });
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || "Failed to delete user");
+            let errorMessage = "Failed to delete user";
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.error || errorData.message || `HTTP error! Status: ${response.status}`;
+            } catch (jsonError) {
+                errorMessage = `HTTP error! Status: ${response.status}. Could not parse error response.`;
+                console.error("Error parsing backend error response:", jsonError);
+            }
+            throw new Error(errorMessage);
         }
         alert("User deleted successfully.");
         await fetchUsers(currentUserToken);
@@ -288,7 +323,8 @@ document.getElementById('addUserForm').addEventListener('submit', async (e) => {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                Authorization: currentUserToken
+                // FIX: Prepend "Bearer " to the token
+                Authorization: `Bearer ${currentUserToken}` 
             },
             body: JSON.stringify({
                 email,
@@ -299,13 +335,20 @@ document.getElementById('addUserForm').addEventListener('submit', async (e) => {
         });
 
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || "Failed to create user");
+            let errorMessage = "Failed to create user";
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.error || errorData.message || `HTTP error! Status: ${response.status}`;
+            } catch (jsonError) {
+                errorMessage = `HTTP error! Status: ${response.status}. Could not parse error response.`;
+                console.error("Error parsing backend error response:", jsonError);
+            }
+            throw new Error(errorMessage);
         }
 
         alert("User created successfully.");
         addUserModal.hide();
-        await fetchUsers(currentUserToken);
+        await fetchUsers(currentUserToken); // fetchUsers also needs the Bearer token now
     } catch (error) {
         alert("Error creating user: " + error.message);
         console.error("Error creating user:", error.message);
