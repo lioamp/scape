@@ -10,7 +10,8 @@ __pycache__/
 backend/venv/
 # If you happen to have an 'env' folder (less common but good to cover)
 backend/env/
-lib/ # If a lib folder is generated inside venv that needs ignoring
+lib/ 
+# If a lib folder is generated inside venv that needs ignoring
 
 # Logs
 *.log
@@ -26,6 +27,8 @@ pip-delete-this-directory.txt
 backend/.env
 # Ignores your Firebase service account key file inside 'backend'
 backend/serviceAccountKey.json
+# Ignores the set_admin.py script at the root level
+set_admin.py
 
 # Node modules (if you have a frontend project with npm)
 node_modules/
