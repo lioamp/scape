@@ -16,6 +16,7 @@ import numpy as np
 import json
 from sklearn.linear_model import LinearRegression
 from scipy.stats import spearmanr # Import for Spearman correlation
+import os # Make sure os is imported for environment variables
 
 app = Flask(__name__)
 CORS(app)
@@ -33,22 +34,34 @@ HEADERS = {
 }
 
 # Initialize Firebase Admin SDK
+# IMPORTANT: For local development, ensure FIREBASE_ADMIN_SDK_KEY_PATH environment variable is set
+# e.g., on Windows: set FIREBASE_ADMIN_SDK_KEY_PATH=C:\path\to\your\serviceAccountKey.json
+# on Linux/macOS: export FIREBASE_ADMIN_SDK_KEY_PATH=/path/to/your/serviceAccountKey.json
+service_account_key_path = os.environ.get('FIREBASE_ADMIN_SDK_KEY_PATH')
+
+if not service_account_key_path:
+    logging.error("FIREBASE_ADMIN_SDK_KEY_PATH environment variable is not set. Firebase Admin SDK will not initialize.")
+    print("CRITICAL ERROR: FIREBASE_ADMIN_SDK_KEY_PATH environment variable is not set.")
+    print("Please set it to the path of your serviceAccountKey.json file.")
+    # Exit or handle gracefully if Firebase is mandatory for the app to function
+    # For now, we'll let it proceed but log the error.
+
 try:
+    # Check if app is already initialized to prevent re-initialization errors
     firebase_admin.get_app()
     logging.info("Firebase Admin SDK already initialized.")
 except ValueError:
-    # IMPORTANT: Replace this with the actual path to your serviceAccountKey.json
-    # This path will need to be configured on the server where the Flask app runs.
-    service_account_key_path = './serviceAccountKey.json' 
-    
-    try:
-        cred = credentials.Certificate(service_account_key_path)
-        firebase_admin.initialize_app(cred)
-        logging.info("Firebase Admin SDK initialized successfully.")
-    except Exception as e:
-        logging.error(f"Error initializing Firebase Admin SDK from {service_account_key_path}: {e}", exc_info=True)
-        print(f"Error initializing Firebase Admin SDK: {e}")
-        print("Firebase features (user management) might not work correctly. Please ensure serviceAccountKey.json is correct.")
+    if service_account_key_path:
+        try:
+            cred = credentials.Certificate(service_account_key_path)
+            firebase_admin.initialize_app(cred)
+            logging.info(f"Firebase Admin SDK initialized successfully from {service_account_key_path}.")
+        except Exception as e:
+            logging.error(f"Error initializing Firebase Admin SDK from {service_account_key_path}: {e}", exc_info=True)
+            print(f"Error initializing Firebase Admin SDK: {e}")
+            print("Firebase features (user management) might not work correctly. Please ensure serviceAccountKey.json is correct.")
+    else:
+        logging.warning("Firebase Admin SDK initialization skipped due to missing service account key path.")
 
 
 def verify_token(f):
@@ -70,11 +83,13 @@ def verify_token(f):
         try:
             id_token = auth_header.split(' ')[1]
             decoded_token = auth.verify_id_token(id_token)
-            request.current_user = decoded_token
+            request.current_user = decoded_token # Attach decoded token to request for subsequent decorators
             logging.info(f"Token verified for user: {decoded_token['uid']}")
         except Exception as e:
             logging.error(f"Error verifying token: {e}", exc_info=True)
             return jsonify({"error": "Invalid or expired token. Please log in again."}), 401
+        
+        # Correctly call the original function 'f'
         return f(*args, **kwargs)
     return decorated_function
 
@@ -259,26 +274,32 @@ def tiktok_engagement_summary():
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        id_token = request.headers.get('Authorization')
-        if not id_token:
-            return jsonify({'error': 'Missing Authorization header'}), 401
+        # Ensure verify_token has run and populated request.current_user
+        if not hasattr(request, 'current_user') or not request.current_user:
+            logging.error("Admin required decorator ran without current_user set. This likely means @verify_token was not applied first.")
+            return jsonify({'error': 'Authentication context missing for admin check.'}), 401
+
+        decoded_token = request.current_user
+        uid = decoded_token['uid']
+
         try:
-            id_token_prefix, token_value = id_token.split(' ', 1)
-            if id_token_prefix.lower() != 'bearer':
-                return jsonify({'error': 'Authorization header must start with Bearer'}), 401
-            decoded_token = auth.verify_id_token(token_value)
-            uid = decoded_token['uid']
+            # Fetch the user object from Firebase to get the *latest* custom claims.
+            # This is important because custom claims are not updated in the ID token until re-login
+            # or a token refresh, but auth.get_user always gets current claims.
             user = auth.get_user(uid)
             if user.custom_claims and user.custom_claims.get('admin'):
                 return f(*args, **kwargs)
             else:
-                return jsonify({'error': 'Admin privileges required'}), 403
+                logging.warning(f"User {uid} attempted admin access but lacks 'admin' claim. Claims: {user.custom_claims}")
+                return jsonify({'error': 'Admin privileges required!'}), 403
         except Exception as e:
-            return jsonify({'error': str(e)}), 401
+            logging.error(f"Error during admin claim check for user {uid}: {e}", exc_info=True)
+            return jsonify({'error': f'Authorization check failed: {str(e)}'}), 401
     return decorated_function
 
 @app.route('/api/users', methods=['GET'])
-@admin_required
+@verify_token # Added: First, verify the token
+@admin_required # Second, if token is valid, check for admin claims
 def list_users():
     """API endpoint to list all Firebase users (admin only)."""
     users = []
@@ -300,7 +321,8 @@ def list_users():
 
 
 @app.route('/api/users', methods=['POST'])
-@admin_required
+@verify_token # Added: First, verify the token
+@admin_required # Second, if token is valid, check for admin claims
 def create_user():
     """API endpoint to create a new Firebase user (admin only)."""
     data = request.json
@@ -325,7 +347,8 @@ def create_user():
         return jsonify({'error': str(e)}), 400
 
 @app.route('/api/users/<uid>', methods=['PUT'])
-@admin_required
+@verify_token # Added: First, verify the token
+@admin_required # Second, if token is valid, check for admin claims
 def update_user(uid):
     """API endpoint to update an existing Firebase user (admin only)."""
     data = request.json
@@ -342,21 +365,23 @@ def update_user(uid):
         return jsonify({'error': str(e)}), 400
 
 @app.route('/api/users/<uid>', methods=['DELETE'])
-@admin_required
+@verify_token # Added: First, verify the token
+@admin_required # Second, if token is valid, check for admin claims
 def delete_user(uid):
     """API endpoint to delete a Firebase user (admin only)."""
-    id_token = request.headers.get('Authorization')
+    # The current user's UID is already in request.current_user['uid'] from verify_token
+    current_uid = request.current_user['uid'] 
     try:
-        decoded_token = auth.verify_id_token(id_token)
-        current_uid = decoded_token['uid']
         if current_uid == uid:
             return jsonify({'error': 'You cannot delete your own account'}), 403
         auth.delete_user(uid)
-        return jsonify({'message': 'User deleted'}), 200 # Changed to 200 for success
+        return jsonify({'message': 'User deleted'}), 200 
     except Exception as e:
+        logging.error(f"Error deleting user {uid}: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 400
 
 @app.route('/api/upload-data', methods=['POST'])
+@verify_token # It's good practice to protect upload routes
 def upload_data():
     """
     Handles file uploads for Facebook, TikTok, or Sales data.

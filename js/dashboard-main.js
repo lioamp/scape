@@ -68,39 +68,43 @@ function mergeData(data1, data2) {
  */
 function filterAndAggregateData(data, timeRange) {
     let filteredData = [];
-    const now = new Date();
-    let startDate;
+    const now = new Date(); // Get today's date
 
-    // Determine the start date for filtering based on timeRange
+    // The end date for filtering is always today's date, as per your request
+    const effectiveEndDate = now; 
+    console.log("Effective End Date for Filtering (today's date):", effectiveEndDate.toISOString().split('T')[0]);
+
+    let startDateFilter;
+    // Determine the start date for filtering based on timeRange, relative to today's date
     switch (timeRange) {
         case 'last3months':
-            // Set startDate to the beginning of the month, 3 months ago from current month
-            startDate = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+            // Start of the month 3 months ago from today's current month
+            startDateFilter = new Date(now.getFullYear(), now.getMonth() - 2, 1);
             break;
         case 'last6months':
-            // Set startDate to the beginning of the month, 6 months ago from current month
-            startDate = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+            // Start of the month 6 months ago from today's current month
+            startDateFilter = new Date(now.getFullYear(), now.getMonth() - 5, 1);
             break;
         case 'lastYear':
-            // Set startDate to one year ago from the current date.
-            // This is then used to filter daily data, which is then aggregated by month.
-            startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+            // Start of the month 1 year ago from today's current month
+            // Example: if today is June 25, 2025 (month 5), start date is June 1, 2024 (month 5)
+            startDateFilter = new Date(now.getFullYear() - 1, now.getMonth(), 1);
             break;
         case 'allTime':
         default:
-            startDate = null; // No date filtering, include all data
+            startDateFilter = null; // No date filtering, include all data up to effectiveEndDate
             break;
     }
+    console.log("Calculated Start Date for Filtering (1st of the month):", startDateFilter ? startDateFilter.toISOString().split('T')[0] : "All Time");
 
-    // Apply date filtering if a startDate is defined
-    if (startDate) {
-        filteredData = data.filter(item => {
-            const itemDate = new Date(item.date);
-            return itemDate >= startDate;
-        });
-    } else {
-        filteredData = [...data]; // If 'allTime', use a copy of the original data
-    }
+
+    // Apply date filtering
+    filteredData = data.filter(item => {
+        const itemDate = new Date(item.date);
+        return (!startDateFilter || itemDate >= startDateFilter) && itemDate <= effectiveEndDate;
+    });
+    console.log("Data filtered based on calculated range:", filteredData);
+
 
     // Aggregate filtered data by month and year
     // The map key will be "YYYY-MM" to ensure unique month-year combinations
@@ -301,12 +305,14 @@ async function renderAllCharts(platform = 'all', timeRange = 'lastYear') {
         // Frontend will filter and aggregate data.
         [reachEngagementData, salesChartRawData] = await Promise.all([
             fetchPlatformData(platform), 
-            fetchSalesChartData(timeRange)
+            fetchSalesChartData(timeRange) // Keep passing timeRange for Sales to filter at backend
         ]);
 
         // Combine and aggregate data
         // This is where filtering based on timeRange happens for Reach/Engagement/Sales
         const combinedRawData = mergeData(reachEngagementData.rawData, salesChartRawData);
+        // Pass the effectiveEndDate to filterAndAggregateData if needed, 
+        // but the function itself now calculates it dynamically based on the data.
         const { labels, reachData, engagementData, salesData } = filterAndAggregateData(combinedRawData, timeRange);
 
         // Render charts and summary individually with their own loading states
