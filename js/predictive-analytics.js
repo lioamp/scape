@@ -9,7 +9,7 @@ let salesChartInstance = null;
 const fixedForecastMonths = 36; // Fixed forecast period to 36 months (3 years)
 
 // Cache for predictive data to avoid re-fetching and re-training on every click
-const predictiveDataCache = {}; 
+const predictiveDataCache = {};
 const CACHE_EXPIRATION_MS = 5 * 60 * 1000; // Cache data for 5 minutes
 
 /**
@@ -61,7 +61,8 @@ function showChartLoadingOverlay(metricType, show) {
 function getMonthYearAbbreviation(dateStr) {
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const date = new Date(dateStr);
-    return `${months[date.getMonth()]} ${date.getFullYear()}`;
+    // Use getUTCMonth and getUTCFullYear to avoid timezone issues affecting the year for "YYYY-01-01" dates
+    return `${months[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
 }
 
 
@@ -76,7 +77,7 @@ async function fetchPredictiveData(metricType, forecastMonths) {
     const cacheKey = `${metricType}-${forecastMonths}`;
 
     // Show loading overlay for this specific chart BEFORE checking cache
-    showChartLoadingOverlay(metricType, true); 
+    showChartLoadingOverlay(metricType, true);
 
     if (predictiveDataCache[cacheKey] && (Date.now() - predictiveDataCache[cacheKey].timestamp < CACHE_EXPIRATION_MS)) {
         console.log(`Using cached predictive data for ${metricType}.`);
@@ -85,7 +86,7 @@ async function fetchPredictiveData(metricType, forecastMonths) {
     }
 
     try {
-        const token = window.currentUserToken; 
+        const token = window.currentUserToken;
         console.log(`Fetching predictive data for ${metricType}. Current token:`, token ? "Available" : "NOT available");
 
         if (!token) {
@@ -107,13 +108,34 @@ async function fetchPredictiveData(metricType, forecastMonths) {
 
         const data = await response.json();
         console.log(`Predictive data for ${metricType} (fixed forecast of ${forecastMonths} months):`, data);
-        
+
+        // --- IMPORTANT FIX: Convert 'year' to 'date' string for frontend charting ---
+        const processedHistoricalData = data.historical_data.map(item => ({
+            date: `${item.year}-01-01`, // Convert year to a standardized date string
+            value: item.value
+        }));
+
+        const processedForecastData = data.forecast_data.map(item => ({
+            date: `${item.year}-01-01`, // Convert year to a standardized date string
+            value: item.value,
+            lower_bound: item.lower_bound,
+            upper_bound: item.upper_bound
+        }));
+
+        const processedData = {
+            historical_data: processedHistoricalData,
+            forecast_data: processedForecastData,
+            recommendation: data.recommendation,
+            message: data.message
+        };
+        // --- END FIX ---
+
         predictiveDataCache[cacheKey] = {
-            data: data,
+            data: processedData, // Store processed data in cache
             timestamp: Date.now()
         };
 
-        return data;
+        return processedData; // Return processed data
 
     } catch (error) {
         console.error('Error fetching predictive data:', error);
@@ -150,10 +172,11 @@ function renderChart(chartId, chartInstance, historicalData, forecastData, label
         chartInstance.destroy(); // Destroy existing chart instance to prevent memory leaks/overlaps
     }
 
+    // Combine all dates from historical and forecast data, ensure unique and sort them
     const allDates = [...new Set([
-        ...historicalData.map(d => d.date), 
+        ...historicalData.map(d => d.date),
         ...forecastData.map(d => d.date)
-    ])].sort((a, b) => new Date(a) - new Date(b)); 
+    ])].sort((a, b) => new Date(a) - new Date(b));
 
     const historicalPlotData = allDates.map(date => {
         const dataPoint = historicalData.find(d => d.date === date);
@@ -164,7 +187,7 @@ function renderChart(chartId, chartInstance, historicalData, forecastData, label
         const dataPoint = forecastData.find(d => d.date === date);
         return dataPoint ? dataPoint.value : null;
     });
-    
+
     const confidenceLowerPlotData = allDates.map(date => {
         const dataPoint = forecastData.find(d => d.date === date);
         return dataPoint ? dataPoint.lower_bound : null;
@@ -181,7 +204,7 @@ function renderChart(chartId, chartInstance, historicalData, forecastData, label
     chartInstance = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: formattedLabels, 
+            labels: formattedLabels,
             datasets: [
                 {
                     label: `Historical ${label}`,
@@ -191,7 +214,7 @@ function renderChart(chartId, chartInstance, historicalData, forecastData, label
                     borderWidth: 2,
                     pointRadius: 3,
                     fill: false,
-                    tension: 0.4 
+                    tension: 0.4
                 },
                 {
                     label: `Forecasted ${label}`,
@@ -199,7 +222,7 @@ function renderChart(chartId, chartInstance, historicalData, forecastData, label
                     borderColor: 'rgb(255, 99, 132)',
                     backgroundColor: 'rgba(255, 99, 132, 0.2)',
                     borderWidth: 2,
-                    borderDash: [5, 5], 
+                    borderDash: [5, 5],
                     pointRadius: 3,
                     fill: false,
                     tension: 0.4
@@ -207,20 +230,20 @@ function renderChart(chartId, chartInstance, historicalData, forecastData, label
                 {
                     label: 'Lower Bound',
                     data: confidenceLowerPlotData,
-                    borderColor: 'rgba(75, 192, 192, 0)', 
-                    backgroundColor: 'rgba(75, 192, 192, 0.1)', 
+                    borderColor: 'rgba(75, 192, 192, 0)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.1)',
                     pointRadius: 0,
-                    fill: '+1', 
-                    hidden: false 
+                    fill: '+1',
+                    hidden: false
                 },
                 {
                     label: 'Upper Bound',
                     data: confidenceUpperPlotData,
-                    borderColor: 'rgba(75, 192, 192, 0)', 
+                    borderColor: 'rgba(75, 192, 192, 0)',
                     backgroundColor: 'rgba(75, 192, 192, 0.1)',
                     pointRadius: 0,
-                    fill: '-1', 
-                    hidden: false 
+                    fill: '-1',
+                    hidden: false
                 }
             ]
         },
@@ -231,10 +254,10 @@ function renderChart(chartId, chartInstance, historicalData, forecastData, label
                 x: {
                     title: {
                         display: true,
-                        text: 'Month and Year' 
+                        text: 'Month and Year'
                     },
-                    type: 'category', 
-                    labels: formattedLabels 
+                    type: 'category',
+                    labels: formattedLabels
                 },
                 y: {
                     title: {
@@ -301,7 +324,7 @@ async function showVisualization(metricType) {
     // The loading overlay is shown by fetchPredictiveData before it proceeds.
     // The canvas is hidden when the overlay is shown (via showChartLoadingOverlay).
 
-    const data = await fetchPredictiveData(metricType, fixedForecastMonths); 
+    const data = await fetchPredictiveData(metricType, fixedForecastMonths);
 
     if (data && data.historical_data && data.forecast_data) {
         const historicalData = data.historical_data;
@@ -386,7 +409,7 @@ async function initializeAllChartsOnLoad() {
         console.log("All predictive charts initialization attempts complete.");
     } catch (error) {
         console.error("An unexpected error occurred during the initialization of all predictive charts:", error);
-    } 
+    }
 }
 
 
