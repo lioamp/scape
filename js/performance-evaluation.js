@@ -51,14 +51,25 @@ function showChartLoadingOverlay(metricType, show) {
 
 
 /**
- * Utility to convert date string (YYYY-MM-DD) to month abbreviation and year
- * e.g., "2023-11-15" becomes "Nov 2023"
+ * Utility to convert date string (YYYY-MM-DD or YYYY-MM) to a formatted label.
+ * e.g., "2023-11-15" becomes "Nov 15, 2023"
+ * e.g., "2023-11" becomes "Nov 2023"
  */
-function getMonthYearAbbreviation(dateStr) {
+function getFormattedDateLabel(dateStr) {
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    const date = new Date(dateStr);
-    // Use getUTCMonth and getUTCFullYear to avoid timezone issues affecting the year for "YYYY-01-01" dates
-    return `${months[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
+    const dateParts = dateStr.split('-');
+
+    if (dateParts.length === 3) { // YYYY-MM-DD format (daily/weekly)
+        const year = dateParts[0];
+        const monthIndex = parseInt(dateParts[1], 10) - 1;
+        const day = parseInt(dateParts[2], 10);
+        return `${months[monthIndex]} ${day}, ${year}`;
+    } else if (dateParts.length === 2) { // YYYY-MM format (monthly)
+        const year = dateParts[0];
+        const monthIndex = parseInt(dateParts[1], 10) - 1;
+        return `${months[monthIndex]} ${year}`;
+    }
+    return dateStr; // Return original if format is unexpected
 }
 
 // Cache for performance data to avoid re-fetching on every click if filters are the same
@@ -237,7 +248,8 @@ function renderChart(chartId, chartInstance, historicalData, label, unit = '', c
             return dataPoint ? parseFloat(dataPoint.value) : null; 
         });
 
-        const formattedLabels = allDates.map(date => getMonthYearAbbreviation(date));
+        // Use the new getFormattedDateLabel for dynamic date formatting
+        const formattedLabels = allDates.map(date => getFormattedDateLabel(date));
 
         const datasets = [
             {
@@ -278,10 +290,16 @@ function renderChart(chartId, chartInstance, historicalData, label, unit = '', c
                     x: {
                         title: {
                             display: true,
-                            text: 'Month and Year'
+                            text: 'Date' // Changed to a more general "Date"
                         },
                         type: 'category',
-                        labels: formattedLabels
+                        labels: formattedLabels,
+                        ticks: {
+                            // Automatically adjust tick display based on the number of labels
+                            // This can prevent labels from overlapping on shorter ranges
+                            autoSkip: true,
+                            maxTicksLimit: 10 // Limit max ticks to avoid overcrowding
+                        }
                     },
                     y: {
                         title: {
@@ -472,6 +490,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const customDateRangeDiv = document.getElementById('customDateRange');
     const performanceFilterForm = document.getElementById('performanceFilterForm');
     const visualizationContainer = document.getElementById('visualization-container');
+    
+    // Get a reference to the filter modal element
+    const filterModalElement = document.getElementById('filterModal');
+    // Get a reference to the Bootstrap modal instance
+    const filterModal = new bootstrap.Modal(filterModalElement);
+
 
     function setDefaultCustomDates(period) {
         const today = new Date();
@@ -548,6 +572,7 @@ document.addEventListener('DOMContentLoaded', () => {
             platformFilter
         });
 
+        // Ensure visualization container is visible when filters are applied
         visualizationContainer.style.display = 'flex'; 
 
         const allPerformanceData = await fetchPerformanceData(startDate, endDate, platformFilter);
@@ -558,15 +583,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 showVisualization('reach', allPerformanceData),
             ]).then(() => {
                 console.log("All performance charts displayed.");
+                // Hide the modal after applying filters
+                filterModal.hide();
             }).catch(error => {
                 console.error("Error displaying charts:", error);
                 showCustomAlert("An error occurred while displaying charts.", "Chart Error");
+                // If there's an error, hide visualizations 
+                visualizationContainer.style.display = 'none';
             });
         } else {
             showCustomAlert("Could not retrieve performance data. Please check your connection or data.", "Data Error");
+            // If no data, hide visualizations
             visualizationContainer.style.display = 'none'; 
         }
     });
 
+    // Ensure visualization container is hidden on page load
     visualizationContainer.style.display = 'none';
+
+    // Show the filter modal on page load
+    filterModal.show();
 });

@@ -622,14 +622,36 @@ def upload_data():
 def performance_data():
     """
     API endpoint for aggregated historical performance data for charts (not predictive).
-    Fetches historical data for engagement, reach, and aggregates them by month,
-    and filters by date range and platform.
+    Fetches historical data for engagement, reach, and aggregates them dynamically
+    (daily, weekly, or monthly) based on the date range, and filters by platform.
     """
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
     platform_filter = request.args.get('platform', 'all')
 
     try:
+        # Convert date strings to datetime objects to calculate date range difference
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d') if start_date_str else None
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d') if end_date_str else None
+
+        # Determine resampling frequency based on date range
+        freq = 'MS' # Default to Month Start
+        date_format = '%Y-%m-%d' # Default date format for output, will be adjusted
+        
+        if start_date and end_date:
+            delta = end_date - start_date
+            if delta <= timedelta(days=30): # Up to 30 days, show daily
+                freq = 'D'
+                date_format = '%Y-%m-%d'
+            elif delta <= timedelta(days=90): # 31 to 90 days, show weekly
+                freq = 'W'
+                date_format = '%Y-%m-%d' # Keep full date for weekly points, frontend can format to 'Week X, YYYY-MM-DD'
+            else: # More than 90 days, show monthly
+                freq = 'MS'
+                date_format = '%Y-%m' # Format to Year-Month for monthly aggregation
+        
+        logging.info(f"Calculated frequency for performance data: {freq} with date format: {date_format}")
+
         # Fetch data based on filters
         tiktok_records = fetch_table("tiktokdata", select="date,views,likes,comments,shares",
                                      start_date=start_date_str, end_date=end_date_str)
@@ -656,37 +678,36 @@ def performance_data():
                 df_facebook['reach_raw'] = df_facebook['reach'].fillna(0)
                 combined_social_df = pd.concat([combined_social_df, df_facebook[['date', 'engagement_raw', 'reach_raw']]])
 
-        # Aggregate combined social media data by month
+        # Aggregate combined social media data dynamically
         if not combined_social_df.empty:
             combined_social_df = combined_social_df.dropna(subset=['date'])
             combined_social_df.set_index('date', inplace=True)
             
-            # Aggregate raw engagement and reach totals per month
-            monthly_social_data = combined_social_df.resample('MS').agg({
+            # Aggregate raw engagement and reach totals per selected frequency
+            aggregated_social_data = combined_social_df.resample(freq).agg({
                 'engagement_raw': 'sum',
                 'reach_raw': 'sum'
             }).reset_index()
             
-            monthly_social_data.rename(columns={
+            aggregated_social_data.rename(columns={
                 'engagement_raw': 'engagement_total', # Keep raw total for frontend calculation
                 'reach_raw': 'reach_total' # Keep raw total for frontend calculation
             }, inplace=True)
             
             # Calculate Engagement Rate: (engagement_total / reach_total) * 100%
-            # This 'engagement' column is the monthly percentage.
-            monthly_social_data['engagement'] = monthly_social_data.apply(
+            # This 'engagement' column is the percentage for the aggregated period.
+            aggregated_social_data['engagement'] = aggregated_social_data.apply(
                 lambda row: (row['engagement_total'] / row['reach_total']) * 100 if row['reach_total'] > 0 else 0, axis=1
             )
-            monthly_social_data['engagement'] = monthly_social_data['engagement'].round(2) # Round to 2 decimal places
+            aggregated_social_data['engagement'] = aggregated_social_data['engagement'].round(2) # Round to 2 decimal places
 
-            monthly_social_data['date'] = monthly_social_data['date'].dt.strftime('%Y-%m-%d')
+            # Format date column according to chosen frequency
+            aggregated_social_data['date'] = aggregated_social_data['date'].dt.strftime(date_format)
         else:
-            monthly_social_data = pd.DataFrame(columns=['date', 'engagement_total', 'reach_total', 'engagement'])
+            aggregated_social_data = pd.DataFrame(columns=['date', 'engagement_total', 'reach_total', 'engagement'])
 
         # Format for frontend - select all necessary columns
-        # Ensure we send 'engagement_total' and 'reach_total' along with 'engagement'
-        # The frontend needs engagement_total and reach_total to calculate the overall engagement rate for the displayed period.
-        performance_data = monthly_social_data[['date', 'engagement', 'engagement_total', 'reach_total']].to_dict(orient='records')
+        performance_data = aggregated_social_data[['date', 'engagement', 'engagement_total', 'reach_total']].to_dict(orient='records')
         performance_data.sort(key=lambda x: x['date']) # Ensure sorted by date
 
         return jsonify(performance_data)
@@ -839,7 +860,6 @@ def generate_recommendation(historical_series, forecast_results, metric_name):
         return recommendation
     else:
         return f"Not enough data to provide a comprehensive recommendation for {metric_name}. Please upload more historical data."
-
 
 @app.route('/api/predictive-analytics', methods=['GET'])
 @verify_token
