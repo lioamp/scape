@@ -150,12 +150,45 @@ function renderChart(chartId, chartInstance, historicalData, label, unit = '', c
         chartInstance.destroy(); // Destroy existing chart instance to prevent memory leaks/overlaps
     }
 
+    // Define common chart options for alignment
+    const commonChartOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: {
+            padding: {
+                left: 40, // Standardize left padding for Y-axis labels
+                right: 20,
+                top: 20,
+                bottom: 20
+            }
+        },
+        plugins: {
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        let label = context.dataset.label || '';
+                        if (label) {
+                            label += ': ';
+                        }
+                        if (context.parsed.y !== null) {
+                            label += context.parsed.y.toLocaleString() + unit;
+                        }
+                        return label;
+                    }
+                }
+            },
+            legend: {
+                display: true,
+                position: 'top',
+            }
+        }
+    };
+
+
     // Bar chart for Engagement Rate
     if (chartType === 'bar' && chartId === 'engagementChart') { 
-        // For the bar chart, historicalData will now represent the _overall_ aggregated data for the period
-        // The current value will be derived from the passed 'historicalData' which contains the overall aggregated value.
-        const overallCurrentValue = historicalData.length > 0 ? historicalData[0].value : 0; // Assuming historicalData[0] holds the single aggregated value
-
+        const overallCurrentValue = historicalData.length > 0 ? historicalData[0].value : 0; 
+        
         chartInstance = new Chart(ctx, {
             type: 'bar',
             data: {
@@ -171,8 +204,7 @@ function renderChart(chartId, chartInstance, historicalData, label, unit = '', c
                 ]
             },
             options: {
-                responsive: true,
-                maintainAspectRatio: false,
+                ...commonChartOptions, // Spread common options
                 scales: {
                     y: {
                         beginAtZero: true,
@@ -180,7 +212,6 @@ function renderChart(chartId, chartInstance, historicalData, label, unit = '', c
                             display: true,
                             text: `${label} ${unit}`
                         },
-                        // Ensure max value is at least the goal or current for better comparison
                         max: Math.max(overallCurrentValue, goalValue) * 1.1 // 10% buffer
                     },
                     x: {
@@ -190,22 +221,9 @@ function renderChart(chartId, chartInstance, historicalData, label, unit = '', c
                     }
                 },
                 plugins: {
+                    ...commonChartOptions.plugins, // Spread common plugins
                     legend: {
-                        display: false // Hide dataset legend as labels are sufficient
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                let label = context.dataset.label || '';
-                                if (label) {
-                                    label += ': ';
-                                }
-                                if (context.parsed.y !== null) {
-                                    label += context.parsed.y.toLocaleString() + unit;
-                                }
-                                return label;
-                            }
-                        }
+                        display: false // Hide dataset legend as labels are sufficient for bar chart
                     }
                 }
             }
@@ -214,11 +232,9 @@ function renderChart(chartId, chartInstance, historicalData, label, unit = '', c
 
     } else if (chartType === 'line') { // Line chart for Reach
         const allDates = [...new Set(historicalData.map(d => d.date))].sort((a, b) => new Date(a) - new Date(b));
-
-        // Ensure plotData contains actual numbers for Chart.js
         const plotData = allDates.map(date => {
             const dataPoint = historicalData.find(d => d.date === date);
-            return dataPoint ? parseFloat(dataPoint.value) : null; // Ensure value is a number
+            return dataPoint ? parseFloat(dataPoint.value) : null; 
         });
 
         const formattedLabels = allDates.map(date => getMonthYearAbbreviation(date));
@@ -236,16 +252,15 @@ function renderChart(chartId, chartInstance, historicalData, label, unit = '', c
             }
         ];
 
-        // Add Goal Line if goalValue is set and not zero
         if (goalValue > 0) {
             datasets.push({
                 label: `Goal ${label}`,
-                data: Array(allDates.length).fill(goalValue), // A flat line at the goal value
-                borderColor: 'rgb(255, 99, 132)', // Red for goal line
+                data: Array(allDates.length).fill(goalValue), 
+                borderColor: 'rgb(255, 99, 132)', 
                 backgroundColor: 'rgba(255, 99, 132, 0.2)',
                 borderWidth: 2,
-                borderDash: [5, 5], // Dashed line for goal
-                pointRadius: 0, // No points on goal line
+                borderDash: [5, 5], 
+                pointRadius: 0, 
                 fill: false,
                 tension: 0
             });
@@ -258,8 +273,7 @@ function renderChart(chartId, chartInstance, historicalData, label, unit = '', c
                 datasets: datasets
             },
             options: {
-                responsive: true,
-                maintainAspectRatio: false,
+                ...commonChartOptions, // Spread common options
                 scales: {
                     x: {
                         title: {
@@ -286,32 +300,12 @@ function renderChart(chartId, chartInstance, historicalData, label, unit = '', c
                             }
                         }
                     }
-                },
-                plugins: {
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                let label = context.dataset.label || '';
-                                if (label) {
-                                    label += ': ';
-                                }
-                                if (context.parsed.y !== null) {
-                                    label += context.parsed.y.toLocaleString() + unit; 
-                                }
-                                return label;
-                            }
-                        }
-                    },
-                    legend: {
-                        display: true,
-                        position: 'top',
-                    }
                 }
+                // Plugins are already spread from commonChartOptions
             }
         });
         return chartInstance;
     }
-    // Fallback if chartType is unknown or not explicitly handled 
     console.error(`Unhandled chart type: ${chartType} for chart ID: ${chartId}`);
     return null;
 }
@@ -329,16 +323,20 @@ async function showVisualization(metricType, allPerformanceData) {
     const chartContainer = document.getElementById(`${metricType}-chart-container`);
     
     let currentMetricElement; 
-    let goalMetricElement;
+    let targetGoalDisplayElement;
 
-    // Determine the correct IDs for the current and goal display elements
     if (metricType === 'engagement') {
         currentMetricElement = document.getElementById('engagementRateCurrent');
-        goalMetricElement = document.getElementById('engagementRateGoal');
+        targetGoalDisplayElement = document.getElementById('engagementRateGoal'); 
     } else if (metricType === 'reach') {
         currentMetricElement = document.getElementById('reachCurrent');
-        goalMetricElement = document.getElementById('reachGoal');
+        targetGoalDisplayElement = document.getElementById('reachGoalDisplay'); 
     }
+
+    console.log(`--- showVisualization called for ${metricType} ---`);
+    console.log(`currentMetricElement (${metricType}Current):`, currentMetricElement);
+    console.log(`targetGoalDisplayElement (${metricType}GoalDisplay/Goal):`, targetGoalDisplayElement);
+    console.log(`recommendationElement (${metricType}Insight):`, recommendationElement);
 
 
     // Show loading overlay
@@ -355,51 +353,49 @@ async function showVisualization(metricType, allPerformanceData) {
     }
     showChartLoadingOverlay(metricType, true);
 
-    let historicalDataForMetric = [];
+    let historicalDataForChart = []; 
     let chartLabel = '';
     let chartUnit = '';
     let currentChartInstance = null;
-    let chartType = 'line'; // Default to line chart
+    let chartType = 'line'; 
 
     let overallEngagementTotal = 0;
-    let overallReachForEngagement = 0; // Separate total reach for engagement rate calculation
+    let overallReachForEngagement = 0; 
+
+    allPerformanceData.forEach(d => {
+        overallEngagementTotal += (d.engagement_total || 0); 
+        overallReachForEngagement += (d.reach_total || 0);   
+    });
+
 
     if (metricType === 'engagement') {
-        // Accumulate totals for the entire filtered period for Engagement Rate
-        allPerformanceData.forEach(d => {
-            overallEngagementTotal += (d.engagement_total || 0);
-            overallReachForEngagement += (d.reach_total || 0);
-        });
-
-        // Calculate overall engagement rate for the displayed period
         const calculatedOverallEngagementRate = (overallReachForEngagement > 0) ? 
                                                 (overallEngagementTotal / overallReachForEngagement) * 100 : 
                                                 0;
         
-        // Pass a single data point representing the overall calculated rate for the bar chart
-        historicalDataForMetric = [{ date: 'Overall', value: calculatedOverallEngagementRate }];
+        historicalDataForChart = [{ date: 'Overall', value: calculatedOverallEngagementRate }];
 
         chartLabel = 'Engagement Rate';
         chartUnit = '%';
         currentChartInstance = engagementChartInstance;
         chartType = 'bar'; 
     } else if (metricType === 'reach') {
-        historicalDataForMetric = allPerformanceData.map(d => ({ date: d.date, value: d.reach_total })); 
+        historicalDataForChart = allPerformanceData.map(d => ({ date: d.date, value: d.reach_total })); 
         chartLabel = 'Reach';
         chartUnit = ''; 
         currentChartInstance = reachChartInstance;
-        chartType = 'line'; // Explicitly set to line for reach
+        chartType = 'line'; 
     } 
 
-    // Get the current value for display in the summary box
-    // For engagement, this is now `historicalDataForMetric[0].value` (the overall calculated rate)
-    // For reach, it's the last value in the time series
-    const currentValue = (metricType === 'engagement') ? historicalDataForMetric[0].value : 
-                         (historicalDataForMetric.length > 0 ? historicalDataForMetric[historicalDataForMetric.length - 1].value : 0);
+    const currentValue = (metricType === 'engagement') ? historicalDataForChart[0].value : 
+                         (historicalDataForChart.length > 0 ? historicalDataForChart[historicalDataForChart.length - 1].value : 0);
     
-    const goalValue = window.kpiGoals[metricType]; 
+    const inputGoalElement = document.getElementById(`${metricType}Goal`);
+    const goalValue = inputGoalElement ? parseFloat(inputGoalElement.value) || 0 : 0;
+    console.log(`Goal input value from form for ${metricType}:`, inputGoalElement?.value); 
+    console.log(`Parsed goalValue for ${metricType}:`, goalValue); 
 
-    // Update Current/Goal KPI displays
+
     if (currentMetricElement) {
         let displayValue = currentValue;
         if (metricType === 'engagement') { 
@@ -407,23 +403,26 @@ async function showVisualization(metricType, allPerformanceData) {
         }
         currentMetricElement.textContent = displayValue.toLocaleString() + chartUnit;
     }
-    if (goalMetricElement) {
+    if (targetGoalDisplayElement) { 
         if (goalValue > 0) {
             let displayGoalValue = goalValue;
             if (metricType === 'engagement') { 
                 displayGoalValue = goalValue.toFixed(2); 
             }
-            goalMetricElement.textContent = displayGoalValue.toLocaleString() + chartUnit;
+            targetGoalDisplayElement.textContent = displayGoalValue.toLocaleString() + chartUnit;
         } else {
-            goalMetricElement.textContent = 'N/A';
+            targetGoalDisplayElement.textContent = 'N/A';
         }
+        console.log(`Updated goal display for ${metricType} to: ${targetGoalDisplayElement.textContent}`);
+    } else {
+        console.warn(`Could not find the targetGoalDisplayElement for ${metricType}.`);
     }
 
 
     const newChartInstance = renderChart(
         `${metricType}Chart`,
         currentChartInstance,
-        historicalDataForMetric, 
+        historicalDataForChart, 
         chartLabel,
         chartUnit,
         chartType,
@@ -436,8 +435,7 @@ async function showVisualization(metricType, allPerformanceData) {
         reachChartInstance = newChartInstance;
     } 
 
-    // Placeholder recommendation logic - replace with actual recommendations from backend if available
-    if (recommendationElement) {
+    if (recommendationElement) { 
         let currentTextValue = currentValue.toLocaleString();
         let goalTextValue = goalValue > 0 ? goalValue.toLocaleString() : 'N/A';
 
@@ -456,13 +454,15 @@ async function showVisualization(metricType, allPerformanceData) {
             if (metricType === 'engagement') {
                 neededText = needed.toFixed(2);
             }
-            recommendationElement.textContent = `Your ${chartLabel} is currently at ${currentTextValue}${chartUnit}, short of your goal of ${goalTextValue}${chartUnit} by ${neededText}${chartUnit}. Consider strategies to boost this metric.`;
+            recommendationElement.textContent = `Your ${chartLabel} is currently at ${currentTextValue}${chartUnit}, short of your goal of ${goalTextValue}${chartUnit}. Consider strategies to boost this metric.`;
         } else {
-             recommendationElement.textContent = `Your current ${currentTextValue}${chartUnit}. Set a goal to track progress!`;
+             recommendationElement.textContent = `Your current ${chartLabel} is ${currentTextValue}${chartUnit}. Set a goal to track progress!`;
         }
+        console.log(`Recommendation for ${metricType} set to:`, recommendationElement.textContent);
+    } else {
+        console.warn(`Recommendation element for ${metricType} not found in the DOM.`);
     }
 
-    // Hide overlay and show canvas
     showChartLoadingOverlay(metricType, false);
 }
 
@@ -473,11 +473,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const performanceFilterForm = document.getElementById('performanceFilterForm');
     const visualizationContainer = document.getElementById('visualization-container');
 
-    // Function to set default dates for custom range based on selected period
     function setDefaultCustomDates(period) {
         const today = new Date();
         let startDate = new Date();
-        const endDate = new Date(today); // End date is always today or closest past date for full period
+        const endDate = new Date(today); 
 
         if (period === '3months') {
             startDate.setMonth(today.getMonth() - 3);
@@ -486,55 +485,46 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (period === 'lastyear') {
             startDate.setFullYear(today.getFullYear() - 1);
         } else if (period === 'alltime') {
-                startDate = new Date(2020, 0, 1); // Example: Jan 1, 2020
+                startDate = new Date(2020, 0, 1); 
         }
 
-        // Format dates to replete-MM-DD for input fields
         const formatDate = (date) => date.toISOString().split('T')[0];
         document.getElementById('startDate').value = formatDate(startDate);
         document.getElementById('endDate').value = formatDate(endDate);
     }
 
-    // Initialize custom date range inputs with default "Last 3 Months" dates
     setDefaultCustomDates('3months');
 
-    // Explicitly hide customDateRangeDiv on page load if the default selected option is not 'custom'.
     if (dateRangeSelect.value !== 'custom') {
         customDateRangeDiv.classList.add('d-none');
         customDateRangeDiv.classList.remove('d-flex');
     }
 
-    // Handle visibility of custom date range inputs based on select value
     dateRangeSelect.addEventListener('change', function() {
         if (this.value === 'custom') {
-            customDateRangeDiv.classList.remove('d-none'); // Show custom date inputs
-            customDateRangeDiv.classList.add('d-flex');    // Ensure it lays out as flex
+            customDateRangeDiv.classList.remove('d-none'); 
+            customDateRangeDiv.classList.add('d-flex');    
         } else {
-            customDateRangeDiv.classList.add('d-none');    // Hide custom date inputs
-            customDateRangeDiv.classList.remove('d-flex'); // Remove flex when hidden
-            setDefaultCustomDates(this.value);              // Set dates based on predefined range
+            customDateRangeDiv.classList.add('d-none');    
+            customDateRangeDiv.classList.remove('d-flex'); 
+            setDefaultCustomDates(this.value);              
         }
     });
 
-    // Handle form submission
     performanceFilterForm.addEventListener('submit', async function(event) {
-        event.preventDefault(); // Prevent default form submission
+        event.preventDefault(); 
 
-        // Get selected filter values
         const selectedDateRange = dateRangeSelect.value;
         let startDate = document.getElementById('startDate').value;
         let endDate = document.getElementById('endDate').value;
         
-        // Parse goal values and store them globally
         window.kpiGoals.reach = parseFloat(document.getElementById('reachGoal').value) || 0;
         window.kpiGoals.engagement = parseFloat(document.getElementById('engagementGoal').value) || 0;
-        // window.kpiGoals.conversion removed
         const platformFilter = document.getElementById('platformFilter').value;
 
-        // If custom range is not selected, update start/end dates based on preset
         if (selectedDateRange !== 'custom') {
             const today = new Date();
-            endDate = today.toISOString().split('T')[0]; // Current date
+            endDate = today.toISOString().split('T')[0]; 
 
             let calculatedStartDate = new Date();
             if (selectedDateRange === '3months') {
@@ -544,7 +534,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (selectedDateRange === 'lastyear') {
                 calculatedStartDate.setFullYear(today.getFullYear() - 1);
             } else if (selectedDateRange === 'alltime') {
-                calculatedStartDate = new Date(2020, 0, 1); // Arbitrary old date for "All-Time"
+                calculatedStartDate = new Date(2020, 0, 1); 
             }
             startDate = calculatedStartDate.toISOString().split('T')[0];
         }
@@ -555,23 +545,17 @@ document.addEventListener('DOMContentLoaded', () => {
             endDate,
             reachGoal: window.kpiGoals.reach,
             engagementGoal: window.kpiGoals.engagement,
-            // conversionGoal removed
             platformFilter
         });
 
-        // Show the visualization container
-        visualizationContainer.style.display = 'flex'; // Use flex for column layout
+        visualizationContainer.style.display = 'flex'; 
 
-        // Fetch all performance data once
         const allPerformanceData = await fetchPerformanceData(startDate, endDate, platformFilter);
 
         if (allPerformanceData) {
-            // Initialize and display charts based on filters and fetched data
-            // Pass the entire data object to showVisualization
             Promise.all([
                 showVisualization('engagement', allPerformanceData),
                 showVisualization('reach', allPerformanceData),
-                // showVisualization('conversion', allPerformanceData) removed
             ]).then(() => {
                 console.log("All performance charts displayed.");
             }).catch(error => {
@@ -579,12 +563,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 showCustomAlert("An error occurred while displaying charts.", "Chart Error");
             });
         } else {
-            // Handle case where allPerformanceData fetching failed
             showCustomAlert("Could not retrieve performance data. Please check your connection or data.", "Data Error");
-            visualizationContainer.style.display = 'none'; // Hide charts if no data
+            visualizationContainer.style.display = 'none'; 
         }
     });
 
-    // Initially hide the charts until filters are applied
     visualizationContainer.style.display = 'none';
 });

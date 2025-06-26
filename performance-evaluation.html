@@ -25,7 +25,8 @@
 
                 <!-- Filters and Goal Settings Form -->
                 <div class="card p-4 rounded-lg shadow-lg">
-                    <h3 class="fw-bold text-primary mb-4">Data Filters and Goal Settings</h3>
+                    <!-- Changed text-primary to text-dark for consistency with dashboard vibe -->
+                    <h3 class="fw-bold text-dark mb-4">Data Filters and Goal Settings</h3>
                     <form id="performanceFilterForm">
                         <div class="row g-3 mb-4">
                             <!-- Date Range Selection -->
@@ -40,7 +41,6 @@
                                 </select>
                             </div>
                             <!-- Custom Date Range Inputs (initially hidden using d-none Bootstrap class) -->
-                            <!-- The d-flex is here to ensure it uses flexbox when visible -->
                             <div class="col-md-6 d-flex align-items-end gap-2 d-none" id="customDateRange">
                                 <div>
                                     <label for="startDate" class="form-label fw-semibold">Start Date:</label>
@@ -63,13 +63,6 @@
                                 <label for="engagementGoal" class="form-label fw-semibold">Engagement Rate Goal (%):</label>
                                 <input type="number" id="engagementGoal" class="form-control" placeholder="e.g., 5.0" step="0.1" min="0" max="100">
                             </div>
-                            <!-- Conversion Rate Goal removed -->
-                            <!--
-                            <div class="col-md-4">
-                                <label for="conversionGoal" class="form-label fw-semibold">Conversion Rate Goal (%):</label>
-                                <input type="number" id="conversionGoal" class="form-control" placeholder="e.g., 2.5" step="0.1" min="0" max="100">
-                            </div>
-                            -->
                         </div>
 
                         <div class="row g-3 mb-4">
@@ -91,57 +84,50 @@
                 </div>
 
                 <!-- Visualizations Container (initially hidden) -->
+                <!-- Changed to a Bootstrap row with two main columns for the 2x2 layout -->
                 <div id="visualization-container" class="mt-4 row g-3" style="display: none;">
 
-                    <!-- Engagement Rate Section -->
-                    <div class="col-12">
-                        <div class="card p-4 rounded-lg shadow-lg d-flex flex-row align-items-center gap-4">
-                            <div class="kpi-summary-box text-start">
-                                <h4 class="fw-bold text-primary mb-2">Engagement Rate</h4>
-                                <p class="mb-1">Current: <span id="engagementRateCurrent" class="fw-bold text-muted">N/A</span></p>
-                                <p class="mb-0">Goal: <span id="engagementRateGoal" class="fw-bold text-muted">N/A</span></p>
-                            </div>
-                            <div id="engagement-chart-container" class="chart-container-style flex-grow-1 text-center">
-                                <h5 class="fw-bold text-primary mb-3">Engagement Rate Over Time</h5>
-                                <canvas id="engagementChart" style="max-height: 250px;"></canvas>
-                                <p id="engagementRateInsight" class="mt-3 p-2 bg-light rounded text-muted text-start small-text-recommendation"></p>
-                            </div>
+                    <!-- Left Column: KPI Summary Boxes -->
+                    <!-- Changed col-md-4 to col-md-3 for thinner summary cards -->
+                    <div class="col-md-3 d-flex flex-column gap-2">
+                        <!-- Engagement Rate KPI Summary -->
+                        <!-- Added summary-total-card and text-white for dashboard vibe -->
+                        <div class="card p-4 rounded-lg shadow-lg flex-grow-1 d-flex flex-column justify-content-center summary-total-card">
+                            <!-- Changed text-primary to text-white for consistency with dashboard vibe -->
+                            <h4 class="fw-bold text-white mb-2 text-start">Engagement Rate</h4>
+                            <p class="mb-1 text-start">Current: <span id="engagementRateCurrent" class="fw-bold text-muted">N/A</span></p>
+                            <p class="mb-0 text-start">Goal: <span id="engagementRateGoal" class="fw-bold text-muted">N/A</span></p>
+                        </div>
+
+                        <!-- Reach KPI Summary -->
+                        <!-- Added summary-total-card and text-white for dashboard vibe -->
+                        <div class="card p-4 rounded-lg shadow-lg flex-grow-1 d-flex flex-column justify-content-center summary-total-card">
+                            <!-- Changed text-primary to text-white for consistency with dashboard vibe -->
+                            <h4 class="fw-bold text-white mb-2 text-start">Reach</h4>
+                            <p class="mb-1 text-start">Current: <span id="reachCurrent" class="fw-bold text-muted">N/A</span></p>
+                            <p class="mb-0 text-start">Goal: <span id="reachGoalDisplay" class="fw-bold text-muted">N/A</span></p>
                         </div>
                     </div>
 
-                    <!-- Reach Section -->
-                    <div class="col-12">
-                        <div class="card p-4 rounded-lg shadow-lg d-flex flex-row align-items-center gap-4">
-                            <div class="kpi-summary-box text-start">
-                                <h4 class="fw-bold text-primary mb-2">Reach</h4>
-                                <p class="mb-1">Current: <span id="reachCurrent" class="fw-bold text-muted">N/A</span></p>
-                                <p class="mb-0">Goal: <span id="reachGoal" class="fw-bold text-muted">N/A</span></p>
-                            </div>
-                            <div id="reach-chart-container" class="chart-container-style flex-grow-1 text-center">
-                                <h5 class="fw-bold text-primary mb-3">Reach Over Time</h5>
-                                <canvas id="reachChart" style="max-height: 250px;"></canvas>
-                                <p id="reachInsight" class="mt-3 p-2 bg-light rounded text-muted text-start small-text-recommendation"></p>
-                            </div>
+                    <!-- Right Column: Chart Containers -->
+                    <!-- Changed col-md-8 to col-md-9 for wider chart cards -->
+                    <div class="col-md-9 d-flex flex-column gap-2">
+                        <!-- Engagement Rate Chart -->
+                        <div id="engagement-chart-container" class="chart-container-style flex-grow-1 text-center d-flex flex-column align-items-stretch">
+                            <!-- Removed text-primary for consistency with dashboard vibe -->
+                            <h5 class="fw-bold mb-3">Engagement Rate Over Time</h5>
+                            <canvas id="engagementChart" style="max-height: 250px;"></canvas>
+                            <p id="engagementInsight" class="mt-3 p-2 bg-light rounded text-muted text-start small-text-recommendation"></p>
                         </div>
-                    </div>
 
-                    <!-- Conversion Rate Section removed -->
-                    <!--
-                    <div class="col-12">
-                        <div class="card p-4 rounded-lg shadow-lg d-flex flex-row align-items-center gap-4">
-                            <div class="kpi-summary-box text-start">
-                                <h4 class="fw-bold text-primary mb-2">Conversion Rate</h4>
-                                <p class="mb-1">Current: <span id="conversionRateCurrent" class="fw-bold text-muted">N/A</span></p>
-                                <p class="mb-0">Goal: <span id="conversionRateGoal" class="fw-bold text-muted">N/A</span></p>
-                            </div>
-                            <div id="conversion-chart-container" class="chart-container-style flex-grow-1 text-center">
-                                <h5 class="fw-bold text-primary mb-3">Conversion Rate: Goal vs. Current</h5>
-                                <canvas id="conversionChart" style="max-height: 250px;"></canvas>
-                                <p id="conversionRateInsight" class="mt-3 p-2 bg-light rounded text-muted text-start small-text-recommendation"></p>
-                            </div>
+                        <!-- Reach Chart -->
+                        <div id="reach-chart-container" class="chart-container-style flex-grow-1 text-center d-flex flex-column align-items-stretch">
+                            <!-- Removed text-primary for consistency with dashboard vibe -->
+                            <h5 class="fw-bold mb-3">Reach Over Time</h5>
+                            <canvas id="reachChart" style="max-height: 250px;"></canvas>
+                            <p id="reachInsight" class="mt-3 p-2 bg-light rounded text-muted text-start small-text-recommendation"></p>
                         </div>
                     </div>
-                    -->
 
                 </div>
             </main>

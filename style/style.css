@@ -531,3 +531,14 @@ canvas {
     text-align: center;
     padding: 1.5rem; /* Match card padding */
 }
+
+/* Added to ensure consistent top spacing for chart canvases */
+/* This will remove the default top margin from the canvas if present,
+   allowing flexbox to control its positioning more effectively. */
+#engagementChart,
+#reachChart {
+    margin-top: 0;
+    margin-bottom: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+}
