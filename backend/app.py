@@ -37,19 +37,13 @@ HEADERS = {
 }
 
 # Initialize Firebase Admin SDK
-# IMPORTANT: For local development, ensure FIREBASE_ADMIN_SDK_KEY_PATH environment variable is set
-# e.g., on Windows: set FIREBASE_ADMIN_SDK_KEY_PATH=C:\path\to\your\serviceAccountKey.json
-# on Linux/macOS: export FIREBASE_ADMIN_SDK_KEY_PATH=/path/to/your/serviceAccountKey.json
 service_account_key_path = os.environ.get('FIREBASE_ADMIN_SDK_KEY_PATH')
 if not service_account_key_path:
     logging.error("FIREBASE_ADMIN_SDK_KEY_PATH environment variable is not set. Firebase Admin SDK will not initialize.")
     print("CRITICAL ERROR: FIREBASE_ADMIN_SDK_KEY_PATH environment variable is not set.")
     print("Please set it to the path of your serviceAccountKey.json file.")
-    # Exit or handle gracefully if Firebase is mandatory for the app to function
-    # For now, we'll let it proceed but log the error.
 
 try:
-    # Check if app is already initialized to prevent re-initialization errors
     firebase_admin.get_app()
     logging.info("Firebase Admin SDK already initialized.")
 except ValueError:
@@ -285,9 +279,6 @@ def admin_required(f):
         uid = decoded_token['uid']
 
         try:
-            # Fetch the user object from Firebase to get the *latest* custom claims.
-            # This is important because custom claims are not updated in the ID token until re-login
-            # or a token refresh, but auth.get_user always gets current claims.
             user = auth.get_user(uid)
             if user.custom_claims and user.custom_claims.get('admin'):
                 return f(*args, **kwargs)
@@ -367,11 +358,10 @@ def update_user(uid):
         return jsonify({'error': str(e)}), 400
 
 @app.route('/api/users/<uid>', methods=['DELETE'])
-@verify_token # Added: First, verify the token
+@verify_token # Added: First, verify_token
 @admin_required # Second, if token is valid, check for admin claims
 def delete_user(uid):
     """API endpoint to delete a Firebase user (admin only)."""
-    # The current user's UID is already in request.current_user['uid'] from verify_token
     current_uid = request.current_user['uid'] 
     try:
         if current_uid == uid:
@@ -625,6 +615,86 @@ def upload_data():
 
     except Exception as e:
         return jsonify({"message": f"Server error during file upload processing: {str(e)}"}), 500
+
+# NEW API ENDPOINT FOR PERFORMANCE DATA
+@app.route('/api/performance-data', methods=['GET'])
+@verify_token
+def performance_data():
+    """
+    API endpoint for aggregated historical performance data for charts (not predictive).
+    Fetches historical data for engagement, reach, and aggregates them by month,
+    and filters by date range and platform.
+    """
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+    platform_filter = request.args.get('platform', 'all')
+
+    try:
+        # Fetch data based on filters
+        tiktok_records = fetch_table("tiktokdata", select="date,views,likes,comments,shares",
+                                     start_date=start_date_str, end_date=end_date_str)
+        facebook_records = fetch_table("facebookdata", select="date,likes,comments,shares,reach",
+                                       start_date=start_date_str, end_date=end_date_str)
+
+        df_tiktok = pd.DataFrame(tiktok_records)
+        df_facebook = pd.DataFrame(facebook_records)
+
+        # Process social media data
+        combined_social_df = pd.DataFrame()
+        
+        if not df_tiktok.empty:
+            df_tiktok['date'] = pd.to_datetime(df_tiktok['date'], errors='coerce')
+            if platform_filter == 'all' or platform_filter == 'tiktok':
+                df_tiktok['engagement_raw'] = df_tiktok['likes'].fillna(0) + df_tiktok['comments'].fillna(0) + df_tiktok['shares'].fillna(0)
+                df_tiktok['reach_raw'] = df_tiktok['views'].fillna(0)
+                combined_social_df = pd.concat([combined_social_df, df_tiktok[['date', 'engagement_raw', 'reach_raw']]])
+        
+        if not df_facebook.empty:
+            df_facebook['date'] = pd.to_datetime(df_facebook['date'], errors='coerce')
+            if platform_filter == 'all' or platform_filter == 'facebook':
+                df_facebook['engagement_raw'] = df_facebook['likes'].fillna(0) + df_facebook['comments'].fillna(0) + df_facebook['shares'].fillna(0)
+                df_facebook['reach_raw'] = df_facebook['reach'].fillna(0)
+                combined_social_df = pd.concat([combined_social_df, df_facebook[['date', 'engagement_raw', 'reach_raw']]])
+
+        # Aggregate combined social media data by month
+        if not combined_social_df.empty:
+            combined_social_df = combined_social_df.dropna(subset=['date'])
+            combined_social_df.set_index('date', inplace=True)
+            
+            # Aggregate raw engagement and reach totals per month
+            monthly_social_data = combined_social_df.resample('MS').agg({
+                'engagement_raw': 'sum',
+                'reach_raw': 'sum'
+            }).reset_index()
+            
+            monthly_social_data.rename(columns={
+                'engagement_raw': 'engagement_total', # Keep raw total for frontend calculation
+                'reach_raw': 'reach_total' # Keep raw total for frontend calculation
+            }, inplace=True)
+            
+            # Calculate Engagement Rate: (engagement_total / reach_total) * 100%
+            # This 'engagement' column is the monthly percentage.
+            monthly_social_data['engagement'] = monthly_social_data.apply(
+                lambda row: (row['engagement_total'] / row['reach_total']) * 100 if row['reach_total'] > 0 else 0, axis=1
+            )
+            monthly_social_data['engagement'] = monthly_social_data['engagement'].round(2) # Round to 2 decimal places
+
+            monthly_social_data['date'] = monthly_social_data['date'].dt.strftime('%Y-%m-%d')
+        else:
+            monthly_social_data = pd.DataFrame(columns=['date', 'engagement_total', 'reach_total', 'engagement'])
+
+        # Format for frontend - select all necessary columns
+        # Ensure we send 'engagement_total' and 'reach_total' along with 'engagement'
+        # The frontend needs engagement_total and reach_total to calculate the overall engagement rate for the displayed period.
+        performance_data = monthly_social_data[['date', 'engagement', 'engagement_total', 'reach_total']].to_dict(orient='records')
+        performance_data.sort(key=lambda x: x['date']) # Ensure sorted by date
+
+        return jsonify(performance_data)
+
+    except Exception as e:
+        logging.error(f"Server error during performance data retrieval: {e}", exc_info=True)
+        return jsonify({"error": f"An error occurred during performance data retrieval: {str(e)}"}), 500
+
 
 def perform_arima_forecast(series, forecast_periods):
     """

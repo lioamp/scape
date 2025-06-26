@@ -10,7 +10,6 @@
         <!-- Include Chart.js library -->
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-        <!-- Removed inline style block -->
     </head>
 
     <body>
@@ -19,107 +18,153 @@
             <div id="sidebar-container"></div>
             <!-- Main content -->
             <main class="flex-grow-1 p-4 d-flex flex-column gap-3 container-fluid" style="background-color: #fefef6;">
-                <!-- Header and Filters (Matching Dashboard layout) -->
+                <!-- Header with the title "Performance Evaluation" in the top-left -->
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 id="welcome-message" class="fw-semibold text-muted mb-0">Performance Evaluation</h5>
-                    <div class="d-flex align-items-center gap-3">
-                        <!-- Platform Filter (Placeholder for consistency with Dashboard) -->
-                        <div class="dropdown">
-                            <button class="btn dashboard-btn-gradient dropdown-toggle" type="button" id="platformFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false" data-platform="all">
-                                Platform: All
-                            </button>
-                            <ul class="dropdown-menu" aria-labelledby="platformFilterDropdown">
-                                <li><a class="dropdown-item" href="#" data-platform="all">All Platforms</a></li>
-                                <li><a class="dropdown-item" href="#" data-platform="tiktok">TikTok</a></li>
-                                <li><a class="dropdown-item" href="#" data-platform="facebook">Facebook</a></li>
-                            </ul>
-                        </div>
-                        <!-- Date Range Filter Inputs -->
-                        <div class="d-flex align-items-center gap-2">
-                            <input type="date" id="startDate" class="date-input" title="Start Date">
-                            <span>to</span>
-                            <input type="date" id="endDate" class="date-input" title="End Date">
-                            <button id="applyDateFilter" class="btn dashboard-btn-gradient">Apply</button>
-                        </div>
-                    </div>
                 </div>
 
-                <!-- KPI Cards Section -->
-                <div class="row g-3 mb-3 justify-content-center">
-                    <div class="col-md-4 col-sm-6 d-flex">
-                        <div class="card flex-fill rounded-lg shadow-lg p-3 summary-total-card" data-kpi="engagement">
-                            <div class="card-header border-0 bg-transparent d-flex justify-content-between align-items-center fw-bold fs-5 text-white">
-                                <span>Engagement Rate</span>
+                <!-- Filters and Goal Settings Form -->
+                <div class="card p-4 rounded-lg shadow-lg">
+                    <h3 class="fw-bold text-primary mb-4">Data Filters and Goal Settings</h3>
+                    <form id="performanceFilterForm">
+                        <div class="row g-3 mb-4">
+                            <!-- Date Range Selection -->
+                            <div class="col-md-6">
+                                <label for="dateRangeSelect" class="form-label fw-semibold">Select Data Range:</label>
+                                <select class="form-select date-input" id="dateRangeSelect">
+                                    <option value="3months">Last 3 Months</option>
+                                    <option value="6months">Last 6 Months</option>
+                                    <option value="lastyear">Last Year</option>
+                                    <option value="alltime">All-Time</option>
+                                    <option value="custom">Custom Range</option>
+                                </select>
                             </div>
-                            <div class="card-body pt-0">
-                                <p class="mb-1 text-light">Current: <span id="engagementRateCurrent" class="fw-bold text-white">Loading...</span></p>
-                                <p class="mb-0 text-light">Goal: <span id="engagementRateGoal" class="fw-bold text-white">Loading...</span></p>
-                                <small class="text-light fst-italic">DATE Range (adjusted based on campaign)</small>
-                                <!-- Recommendation text box for Engagement -->
-                                <div id="engagementRecommendation" class="p-2 mt-2 rounded border border-white border-opacity-50 text-center small-text-recommendation recommendation-on-gradient">
-                                    Loading Recommendation...
+                            <!-- Custom Date Range Inputs (initially hidden using d-none Bootstrap class) -->
+                            <!-- The d-flex is here to ensure it uses flexbox when visible -->
+                            <div class="col-md-6 d-flex align-items-end gap-2 d-none" id="customDateRange">
+                                <div>
+                                    <label for="startDate" class="form-label fw-semibold">Start Date:</label>
+                                    <input type="date" id="startDate" class="form-control date-input">
+                                </div>
+                                <div>
+                                    <label for="endDate" class="form-label fw-semibold">End Date:</label>
+                                    <input type="date" id="endDate" class="form-control date-input">
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    <div class="col-md-4 col-sm-6 d-flex">
-                        <div class="card flex-fill rounded-lg shadow-lg p-3 summary-total-card" data-kpi="reach">
-                            <div class="card-header border-0 bg-transparent d-flex justify-content-between align-items-center fw-bold fs-5 text-white">
-                                <span>Reach</span>
+                        <div class="row g-3 mb-4">
+                            <!-- Goal Value Settings -->
+                            <div class="col-md-6">
+                                <label for="reachGoal" class="form-label fw-semibold">Reach Goal:</label>
+                                <input type="number" id="reachGoal" class="form-control" placeholder="e.g., 100000" min="0">
                             </div>
-                            <div class="card-body pt-0">
-                                <p class="mb-1 text-light">Current: <span id="reachCurrent" class="fw-bold text-white">Loading...</span></p>
-                                <p class="mb-0 text-light">Goal: <span id="reachGoal" class="fw-bold text-white">Loading...</span></p>
-                                <!-- Recommendation text box for Reach -->
-                                <div id="reachRecommendation" class="p-2 mt-2 rounded border border-white border-opacity-50 text-center small-text-recommendation recommendation-on-gradient">
-                                    Loading Recommendation...
-                                </div>
+                            <div class="col-md-6">
+                                <label for="engagementGoal" class="form-label fw-semibold">Engagement Rate Goal (%):</label>
+                                <input type="number" id="engagementGoal" class="form-control" placeholder="e.g., 5.0" step="0.1" min="0" max="100">
                             </div>
+                            <!-- Conversion Rate Goal removed -->
+                            <!--
+                            <div class="col-md-4">
+                                <label for="conversionGoal" class="form-label fw-semibold">Conversion Rate Goal (%):</label>
+                                <input type="number" id="conversionGoal" class="form-control" placeholder="e.g., 2.5" step="0.1" min="0" max="100">
+                            </div>
+                            -->
                         </div>
-                    </div>
 
-                    <div class="col-md-4 col-sm-6 d-flex">
-                        <div class="card flex-fill rounded-lg shadow-lg p-3 summary-total-card" data-kpi="conversion">
-                            <div class="card-header border-0 bg-transparent d-flex justify-content-between align-items-center fw-bold fs-5 text-white">
-                                <span>Conversion Rate</span>
-                            </div>
-                            <div class="card-body pt-0">
-                                <p class="mb-1 text-light">Current: <span id="conversionRateCurrent" class="fw-bold text-white">Loading...</span></p>
-                                <p class="mb-0 text-light">Goal: <span id="conversionRateGoal" class="fw-bold text-white">Loading...</span></p>
-                                <small class="text-light fst-italic">DATE Range (adjusted based on campaign)</small>
-                                <!-- Recommendation text box for Conversion -->
-                                <div id="conversionRecommendation" class="p-2 mt-2 rounded border border-white border-opacity-50 text-center small-text-recommendation recommendation-on-gradient">
-                                    Loading Recommendation...
-                                </div>
+                        <div class="row g-3 mb-4">
+                            <!-- Platform Filter -->
+                            <div class="col-md-6">
+                                <label for="platformFilter" class="form-label fw-semibold">Filter by Platform:</label>
+                                <select class="form-select date-input" id="platformFilter">
+                                    <option value="all">All Platforms</option>
+                                    <option value="facebook">Facebook</option>
+                                    <option value="tiktok">TikTok</option>
+                                </select>
                             </div>
                         </div>
-                    </div>
+
+                        <div class="d-flex justify-content-end">
+                            <button type="submit" class="btn dashboard-btn-gradient">Apply Filters</button>
+                        </div>
+                    </form>
                 </div>
 
-                <!-- Visualizations Container -->
-                <div id="visualization-container" class="mt-4 row g-3">
-                    <div id="engagement-chart-container" class="col-12 chart-container-style text-center">
-                        <h3 class="fw-bold text-primary mb-3">Engagement Rate Over Time</h3>
-                        <canvas id="engagementChart" style="max-height: 400px;"></canvas>
-                        <p id="engagementRateInsight" class="mt-4 p-3 bg-light rounded text-muted text-start"></p>
+                <!-- Visualizations Container (initially hidden) -->
+                <div id="visualization-container" class="mt-4 row g-3" style="display: none;">
+
+                    <!-- Engagement Rate Section -->
+                    <div class="col-12">
+                        <div class="card p-4 rounded-lg shadow-lg d-flex flex-row align-items-center gap-4">
+                            <div class="kpi-summary-box text-start">
+                                <h4 class="fw-bold text-primary mb-2">Engagement Rate</h4>
+                                <p class="mb-1">Current: <span id="engagementRateCurrent" class="fw-bold text-muted">N/A</span></p>
+                                <p class="mb-0">Goal: <span id="engagementRateGoal" class="fw-bold text-muted">N/A</span></p>
+                            </div>
+                            <div id="engagement-chart-container" class="chart-container-style flex-grow-1 text-center">
+                                <h5 class="fw-bold text-primary mb-3">Engagement Rate Over Time</h5>
+                                <canvas id="engagementChart" style="max-height: 250px;"></canvas>
+                                <p id="engagementRateInsight" class="mt-3 p-2 bg-light rounded text-muted text-start small-text-recommendation"></p>
+                            </div>
+                        </div>
                     </div>
 
-                    <div id="reach-chart-container" class="col-12 chart-container-style text-center">
-                        <h3 class="fw-bold text-primary mb-3">Reach Over Time</h3>
-                        <canvas id="reachChart" style="max-height: 400px;"></canvas>
-                        <p id="reachInsight" class="mt-4 p-3 bg-light rounded text-muted text-start"></p>
+                    <!-- Reach Section -->
+                    <div class="col-12">
+                        <div class="card p-4 rounded-lg shadow-lg d-flex flex-row align-items-center gap-4">
+                            <div class="kpi-summary-box text-start">
+                                <h4 class="fw-bold text-primary mb-2">Reach</h4>
+                                <p class="mb-1">Current: <span id="reachCurrent" class="fw-bold text-muted">N/A</span></p>
+                                <p class="mb-0">Goal: <span id="reachGoal" class="fw-bold text-muted">N/A</span></p>
+                            </div>
+                            <div id="reach-chart-container" class="chart-container-style flex-grow-1 text-center">
+                                <h5 class="fw-bold text-primary mb-3">Reach Over Time</h5>
+                                <canvas id="reachChart" style="max-height: 250px;"></canvas>
+                                <p id="reachInsight" class="mt-3 p-2 bg-light rounded text-muted text-start small-text-recommendation"></p>
+                            </div>
+                        </div>
                     </div>
 
-                    <div id="conversion-chart-container" class="col-12 chart-container-style text-center">
-                        <h3 class="fw-bold text-primary mb-3">Conversion Rate: Goal vs. Current</h3>
-                        <canvas id="conversionChart" style="max-height: 400px;"></canvas>
-                        <p id="conversionRateInsight" class="mt-4 p-3 bg-light rounded text-muted text-start"></p>
+                    <!-- Conversion Rate Section removed -->
+                    <!--
+                    <div class="col-12">
+                        <div class="card p-4 rounded-lg shadow-lg d-flex flex-row align-items-center gap-4">
+                            <div class="kpi-summary-box text-start">
+                                <h4 class="fw-bold text-primary mb-2">Conversion Rate</h4>
+                                <p class="mb-1">Current: <span id="conversionRateCurrent" class="fw-bold text-muted">N/A</span></p>
+                                <p class="mb-0">Goal: <span id="conversionRateGoal" class="fw-bold text-muted">N/A</span></p>
+                            </div>
+                            <div id="conversion-chart-container" class="chart-container-style flex-grow-1 text-center">
+                                <h5 class="fw-bold text-primary mb-3">Conversion Rate: Goal vs. Current</h5>
+                                <canvas id="conversionChart" style="max-height: 250px;"></canvas>
+                                <p id="conversionRateInsight" class="mt-3 p-2 bg-light rounded text-muted text-start small-text-recommendation"></p>
+                            </div>
+                        </div>
                     </div>
+                    -->
+
                 </div>
             </main>
         </div>
         
+        <!-- Custom Alert Modal Structure -->
+        <div class="modal fade" id="customAlertModal" tabindex="-1" aria-labelledby="customAlertModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="customAlertModalLabel">Notification</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body" id="customAlertModalBody">
+                        <!-- Message will be inserted here by JavaScript -->
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <script src="js/loadSidebar.js" type="module"></script>
         <script src="js/auth.js" type="module"></script>
         <script type="module" src="js/performance-evaluation.js"></script>
