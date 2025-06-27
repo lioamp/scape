@@ -360,7 +360,7 @@ main {
 
 /* Small Summary Card Specifics */
 .summary-total-card {
-    background: linear-gradient(135deg, #7B68EE, #5A4CD1); /* Purple gradient background */
+    background: linear-gradient(180deg, #140375, #8c80fa); /* Purple gradient background */
     border-radius: 10px; /* Slightly more rounded than default */
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); /* Softer shadow for small cards */
     padding: 1.25rem !important; /* Adjust padding for better spacing */
@@ -369,7 +369,11 @@ main {
 }
 
 .summary-total-card .text-muted {
-    color: rgba(255, 255, 255, 0.8) !important; /* White text for muted */
+    color: rgb(255, 255, 255) !important; /* White text for muted */
+}
+
+.summary-total-card .text-current {
+    color: rgb(7, 7, 7) !important; /* White text for muted */
 }
 
 .summary-card-value {
@@ -542,3 +546,84 @@ canvas {
     padding-top: 0;
     padding-bottom: 0;
 }
+
+/* New styles for the fixed filter panel */
+#filterPanel {
+    position: fixed;
+    top: 0;
+    right: -380px; /* Hidden by default, slide out from right. Width is 350px + 30px padding. */
+    width: 350px; /* Fixed width for the panel */
+    height: 100vh;
+    background-color: white;
+    box-shadow: -5px 0 15px rgba(0, 0, 0, 0.15); /* Shadow on the left edge */
+    z-index: 1050; /* Above most content, below Bootstrap modals */
+    transition: right 0.3s ease-in-out; /* Smooth sliding transition */
+    padding: 20px;
+    display: flex; /* Use flexbox for internal layout */
+    flex-direction: column;
+    justify-content: flex-start; /* Align content to the top */
+    overflow-y: auto; /* Allow scrolling if content is too long */
+    border-left: 1px solid #e0e0e0; /* Subtle border on the left */
+}
+
+#filterPanel.filter-panel-open {
+    right: 0; /* Bring the panel into view */
+}
+
+/* Adjust main content padding when filter panel is open to avoid overlap */
+/* This is an optional adjustment if you want the main content to shrink slightly
+   instead of being fully overlaid. User asked for "doesn't push content down"
+   so overlay is preferred initially. If content shifts, it means it IS pushing. */
+/*
+body.filter-panel-open main {
+    padding-right: calc(40px + 350px); // Original padding + width of panel
+    transition: padding-right 0.3s ease-in-out;
+}
+*/
+
+/* Styles for the filter panel header/title */
+#filterPanel .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+#filterPanel .panel-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 0;
+}
+
+/* Style for the close button within the panel */
+#filterPanel .btn-close {
+    font-size: 1rem;
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+}
+
+#filterPanel .btn-close:hover {
+    opacity: 1;
+}
+
+/* Adjust form-label spacing for better alignment in fixed panel */
+#filterPanel .form-label {
+    margin-bottom: 0.5rem;
+}
+
+/* Ensure the "Apply Filters" button is at the bottom, sticky-like */
+#filterPanel form {
+    display: flex;
+    flex-direction: column;
+    height: 100%; /* Make form take full height of panel for spacing */
+}
+
+#filterPanel .d-flex.justify-content-end {
+    margin-top: auto; /* Pushes the button to the bottom */
+    padding-top: 20px; /* Space above the button */
+    border-top: 1px solid #f0f0f0; /* Separator for the button */
+}
+

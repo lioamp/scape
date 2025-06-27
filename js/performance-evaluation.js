@@ -490,11 +490,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const customDateRangeDiv = document.getElementById('customDateRange');
     const performanceFilterForm = document.getElementById('performanceFilterForm');
     const visualizationContainer = document.getElementById('visualization-container');
-    
-    // Get a reference to the filter modal element
-    const filterModalElement = document.getElementById('filterModal');
-    // Get a reference to the Bootstrap modal instance
-    const filterModal = new bootstrap.Modal(filterModalElement);
+    const filterPanel = document.getElementById('filterPanel'); // Get the new filter panel element
+    const toggleFilterButton = document.getElementById('toggleFilterButton'); // Get the toggle button
+    const closeFilterPanelButton = document.getElementById('closeFilterPanelButton'); // Get the close button
 
 
     function setDefaultCustomDates(period) {
@@ -583,8 +581,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 showVisualization('reach', allPerformanceData),
             ]).then(() => {
                 console.log("All performance charts displayed.");
-                // Hide the modal after applying filters
-                filterModal.hide();
+                // Hide the filter panel after applying filters
+                filterPanel.classList.remove('filter-panel-open');
             }).catch(error => {
                 console.error("Error displaying charts:", error);
                 showCustomAlert("An error occurred while displaying charts.", "Chart Error");
@@ -601,6 +599,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Ensure visualization container is hidden on page load
     visualizationContainer.style.display = 'none';
 
-    // Show the filter modal on page load
-    filterModal.show();
+    // Automatically open the filter panel on page load
+    filterPanel.classList.add('filter-panel-open');
+
+    // Toggle filter panel visibility
+    toggleFilterButton.addEventListener('click', () => {
+        filterPanel.classList.toggle('filter-panel-open');
+    });
+
+    // Close filter panel using the 'X' button
+    closeFilterPanelButton.addEventListener('click', () => {
+        filterPanel.classList.remove('filter-panel-open');
+    });
 });
