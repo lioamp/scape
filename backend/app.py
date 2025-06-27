@@ -666,6 +666,7 @@ def performance_data():
         
         if not df_tiktok.empty:
             df_tiktok['date'] = pd.to_datetime(df_tiktok['date'], errors='coerce')
+            # Filter by platform here
             if platform_filter == 'all' or platform_filter == 'tiktok':
                 df_tiktok['engagement_raw'] = df_tiktok['likes'].fillna(0) + df_tiktok['comments'].fillna(0) + df_tiktok['shares'].fillna(0)
                 df_tiktok['reach_raw'] = df_tiktok['views'].fillna(0)
@@ -673,6 +674,7 @@ def performance_data():
         
         if not df_facebook.empty:
             df_facebook['date'] = pd.to_datetime(df_facebook['date'], errors='coerce')
+            # Filter by platform here
             if platform_filter == 'all' or platform_filter == 'facebook':
                 df_facebook['engagement_raw'] = df_facebook['likes'].fillna(0) + df_facebook['comments'].fillna(0) + df_facebook['shares'].fillna(0)
                 df_facebook['reach_raw'] = df_facebook['reach'].fillna(0)
@@ -735,7 +737,7 @@ def perform_arima_forecast(series, forecast_periods):
         logging.warning(f"Insufficient data ({len(series)} points) for robust ARIMA. Falling back to Linear Regression.")
         # Pass the original series to linear regression for it to handle its own data requirements
         return perform_linear_regression_forecast(series, forecast_periods), last_historical_year
-
+    
     try:
         # Fit auto_arima model
         # Using suppress_warnings=True to avoid printing convergence warnings to console
@@ -1032,9 +1034,11 @@ def correlation_analysis():
     Calculates correlations between Engagement, Reach, and Sales.
     Provides automated recommendations based on correlation strength.
     Also returns the underlying data for scatter plotting.
+    Filters data by platform.
     """
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
+    platform_filter = request.args.get('platform', 'all') # Get platform filter
 
     # Fetch data from all relevant tables
     tiktok_records = fetch_table("tiktokdata", select="date,views,likes,comments,shares", start_date=start_date_str, end_date=end_date_str)
@@ -1055,24 +1059,28 @@ def correlation_analysis():
             logging.warning(f"DataFrame is missing 'date' column.")
             continue
     
-    # Aggregate social media data
+    # Aggregate social media data based on platform filter
     combined_social_df = pd.DataFrame()
     
-    if not df_tiktok.empty:
+    if not df_tiktok.empty and (platform_filter == 'all' or platform_filter == 'tiktok'):
         df_tiktok['engagement'] = df_tiktok['likes'].fillna(0) + df_tiktok['comments'].fillna(0) + df_tiktok['shares'].fillna(0)
         df_tiktok['reach'] = df_tiktok['views'].fillna(0)
         tiktok_daily_agg = df_tiktok.groupby(df_tiktok.index).agg({'engagement': 'sum', 'reach': 'sum'})
         combined_social_df = pd.concat([combined_social_df, tiktok_daily_agg])
 
-    if not df_facebook.empty:
+    if not df_facebook.empty and (platform_filter == 'all' or platform_filter == 'facebook'):
         df_facebook['engagement'] = df_facebook['likes'].fillna(0) + df_facebook['comments'].fillna(0) + df_facebook['shares'].fillna(0)
         df_facebook['reach'] = df_facebook['reach'].fillna(0)
         facebook_daily_agg = df_facebook.groupby(df_facebook.index).agg({'engagement': 'sum', 'reach': 'sum'})
         combined_social_df = pd.concat([combined_social_df, facebook_daily_agg])
 
-    # If both DFs contributed, re-aggregate to ensure unique daily sums
+    # If both DFs contributed, re-aggregate to ensure unique daily sums (after platform filtering)
     if not combined_social_df.empty:
         combined_social_df = combined_social_df.groupby(combined_social_df.index).agg({'engagement': 'sum', 'reach': 'sum'})
+    else:
+        # If no data after filtering, initialize with empty columns to avoid key errors later
+        combined_social_df = pd.DataFrame(columns=['engagement', 'reach'])
+
 
     # Aggregate sales data
     if not df_sales.empty:
@@ -1082,11 +1090,16 @@ def correlation_analysis():
         sales_daily_agg = pd.DataFrame(columns=['revenue'])
 
     # Merge aggregated dataframes on date
-    merged_df = pd.merge(combined_social_df, sales_daily_agg, left_index=True, right_index=True, how='inner')
+    # Use outer join to keep all dates from social or sales data, then filter for common dates later for correlation
+    merged_df = pd.merge(combined_social_df, sales_daily_agg, left_index=True, right_index=True, how='outer')
     merged_df = merged_df.fillna(0) # Fill any remaining NaNs with 0
 
-    # Prepare data for scatter plots
-    # Convert DataFrame to a list of dicts, with dates formatted as strings
+    # For correlation calculation, we need common data points.
+    # Filter for rows where all relevant columns ('engagement', 'reach', 'revenue') have data (not zero after fillna).
+    # This specifically addresses the 'insufficient data' for correlation, while still providing `chart_data` for plotting what's available.
+    correlation_df = merged_df[(merged_df['engagement'] > 0) & (merged_df['reach'] > 0) & (merged_df['revenue'] > 0)].copy()
+
+    # Prepare data for scatter plots (from the full merged_df, which includes dates with zeros after fillna)
     chart_data = []
     if not merged_df.empty:
         merged_df_sorted = merged_df.sort_index() # Ensure data is sorted by date
@@ -1098,28 +1111,12 @@ def correlation_analysis():
                 'sales': row.get('revenue', 0)
             })
 
-    # Check if there's enough data for correlation
-    min_data_points = 5 # A reasonable minimum for correlation analysis
-    if len(merged_df) < min_data_points:
-        return jsonify({
-            "message": f"Not enough common data points ({len(merged_df)} found, {min_data_points} required) "
-                       "across all metrics for correlation analysis within the selected date range. "
-                       "Please adjust your date range or upload more data.",
-            "correlations": {},
-            "recommendations": {
-                "engage_reach": "Insufficient data to provide a recommendation for Engagement/Reach correlation.",
-                "engage_sales": "Insufficient data to provide a recommendation for Engagement/Sales correlation.",
-                "reach_sales": "Insufficient data to provide a recommendation for Reach/Sales correlation."
-            },
-            "chart_data": chart_data # Still return available data even if not enough for correlation
-        }), 200
-
     correlations = {}
     recommendations = {}
 
     def get_recommendation_text(correlation, var1_name, var2_name):
         if pd.isna(correlation):
-            return f"Not enough data to calculate a meaningful correlation between {var1_name} and {var2_name}."
+            return f"Not enough data to calculate a meaningful correlation between {var1_name} and {var2_name} for the selected period/platform."
         
         correlation_abs = abs(correlation)
         if correlation_abs >= 0.7:
@@ -1142,30 +1139,57 @@ def correlation_analysis():
             message = f"There is a {strength} correlation between {var1_name} and {var2_name} (Correlation: {correlation:.2f}). This suggests that changes in {var1_name} {action} influence {var2_name} in a direct or inverse manner. It might be beneficial to explore other factors or refine your approach."
         return message
 
-    # Calculate correlations and generate recommendations
-    if 'engagement' in merged_df.columns and 'reach' in merged_df.columns:
-        corr_er, _ = spearmanr(merged_df['engagement'], merged_df['reach'])
+    # Check if there's enough data in the *correlation_df* for calculation
+    min_data_points = 5 # A reasonable minimum for meaningful correlation analysis
+    if len(correlation_df) < min_data_points:
+        logging.warning(f"Insufficient common data points for correlation analysis: {len(correlation_df)} found, {min_data_points} required.")
+        return jsonify({
+            "message": f"Not enough common data points ({len(correlation_df)} found, {min_data_points} required) "
+                       "across all metrics with non-zero values for correlation analysis within the selected date range and platform. "
+                       "Please adjust your date range, platform filter, or upload more data.",
+            "correlations": {
+                "engage_reach": None,
+                "engage_sales": None,
+                "reach_sales": None
+            },
+            "recommendations": {
+                "engage_reach": "Insufficient data to provide a recommendation for Engagement/Reach correlation.",
+                "engage_sales": "Insufficient data to provide a recommendation for Engagement/Sales correlation.",
+                "reach_sales": "Insufficient data to provide a recommendation for Reach/Sales correlation."
+            },
+            "chart_data": chart_data # Still return available data for plotting
+        }), 200
+
+    # Calculate correlations and generate recommendations using correlation_df
+    # Note: spearmanr handles NaN by dropping them, but we've already filled with 0.
+    # It's important that the series used for spearmanr has variance.
+    
+    if 'engagement' in correlation_df.columns and 'reach' in correlation_df.columns and \
+       correlation_df['engagement'].std() > 0 and correlation_df['reach'].std() > 0:
+        corr_er, _ = spearmanr(correlation_df['engagement'], correlation_df['reach'])
         correlations['engage_reach'] = round(corr_er, 2)
         recommendations['engage_reach'] = get_recommendation_text(corr_er, "Engagement", "Reach")
     else:
         correlations['engage_reach'] = None
-        recommendations['engage_reach'] = "Missing 'engagement' or 'reach' data for correlation analysis."
+        recommendations['engage_reach'] = "Missing or invariant 'engagement' or 'reach' data for correlation analysis."
 
-    if 'engagement' in merged_df.columns and 'revenue' in merged_df.columns:
-        corr_es, _ = spearmanr(merged_df['engagement'], merged_df['revenue'])
+    if 'engagement' in correlation_df.columns and 'revenue' in correlation_df.columns and \
+       correlation_df['engagement'].std() > 0 and correlation_df['revenue'].std() > 0:
+        corr_es, _ = spearmanr(correlation_df['engagement'], correlation_df['revenue'])
         correlations['engage_sales'] = round(corr_es, 2)
         recommendations['engage_sales'] = get_recommendation_text(corr_es, "Engagement", "Sales")
     else:
         correlations['engage_sales'] = None
-        recommendations['engage_sales'] = "Missing 'engagement' or 'sales' data for correlation analysis."
+        recommendations['engage_sales'] = "Missing or invariant 'engagement' or 'sales' data for correlation analysis."
 
-    if 'reach' in merged_df.columns and 'revenue' in merged_df.columns:
-        corr_rs, _ = spearmanr(merged_df['reach'], merged_df['revenue'])
+    if 'reach' in correlation_df.columns and 'revenue' in correlation_df.columns and \
+       correlation_df['reach'].std() > 0 and correlation_df['revenue'].std() > 0:
+        corr_rs, _ = spearmanr(correlation_df['reach'], correlation_df['revenue'])
         correlations['reach_sales'] = round(corr_rs, 2)
         recommendations['reach_sales'] = get_recommendation_text(corr_rs, "Reach", "Sales")
     else:
         correlations['reach_sales'] = None
-        recommendations['reach_sales'] = "Missing 'reach' or 'sales' data for correlation analysis."
+        recommendations['reach_sales'] = "Missing or invariant 'reach' or 'sales' data for correlation analysis."
 
     return jsonify({
         "message": "Correlation analysis successful.",
