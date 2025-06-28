@@ -976,7 +976,7 @@ def generate_recommendation(historical_series, forecast_results, metric_name):
         if change_percent > 5:
             recommendation += " This indicates a strong positive growth. Consider investing more in strategies that have driven this success."
         elif change_percent < -5:
-            recommendation += " This suggests a potential decline . It's crucial to analyze recent activities and re-evaluate your strategy to mitigate this trend."
+            recommendation += " This suggests a potential decline. It's crucial to analyze recent activities and re-evaluate your strategy to mitigate this trend."
         else:
             recommendation += " This indicates a stable trend. Continue optimizing current efforts and explore new avenues for growth."
         
