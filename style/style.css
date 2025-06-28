@@ -627,3 +627,39 @@ body.filter-panel-open main {
     border-top: 1px solid #f0f0f0; /* Separator for the button */
 }
 
+/* --- New Styles for User Management Page --- */
+
+/* Wrapper for the users table to allow loading overlay positioning */
+.users-table-wrapper {
+    position: relative; /* Needed for positioning the loading overlay */
+    min-height: 300px; /* Ensure table has some height even when empty/loading */
+}
+
+/* Table headers for better consistency with overall app design */
+.table th {
+    font-weight: 600; /* Bolder headers */
+    color: #555; /* Slightly muted color */
+    border-bottom: 2px solid #e0e0e0; /* More pronounced border */
+}
+
+/* Table cell text color */
+.table td {
+    color: #333;
+}
+
+/* Striped rows for better readability */
+.table-striped tbody tr:nth-of-type(odd) {
+    background-color: rgba(0, 0, 0, 0.02); /* Very light stripe */
+}
+
+/* Styles for role checkboxes/radios within the table rows/modals */
+.role-checkbox-group label {
+    margin-right: 15px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #666;
+}
+.role-checkbox-group input[type="radio"],
+.role-checkbox-group input[type="checkbox"] {
+    margin-right: 5px;
+}
