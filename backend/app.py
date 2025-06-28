@@ -28,7 +28,7 @@ logging.basicConfig(level=logging.INFO)
 
 # --- Supabase config ---
 SUPABASE_URL = "https://jfajaxpzkjqvdibdyibz.supabase.co"
-SUPABASE_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpmYWpheHB6a2pxdmRpYmR5aWJ6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0Nzg5MzQ5MCwiZXhwIjoyMDYzNDY5NDkwfQ.geM5QBwNnagPeaHdZxTwkbtIfMBubR8rGX1cgbDlj10"
+SUPABASE_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpmYWpheHB6a2pxdmRpYmR5aWJ6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0Nzg5MzQ5MCwiZXhwIjoyMDYzNDY5NDkwfQ.geM5QBwNnagPeaHdZxTwkbtIfMBubR8rGX1cgbDlj10" # REPLACE THIS WITH YOUR ACTUAL SERVICE_ROLE KEY
 
 HEADERS = {
     "apikey": SUPABASE_API_KEY,
@@ -133,10 +133,18 @@ def fetch_table(table_name, select="*", order=None, limit=None, start_date=None,
         if table_name == "activity_logs":
             date_column = "timestamp"
 
+        # --- Re-enabled date filters for activity_logs ---
         if start_date:
             query_params.append(f"{date_column}=gte.{urllib.parse.quote(str(start_date))}")
         if end_date:
-            query_params.append(f"{date_column}=lte.{urllib.parse.quote(str(end_date))}")
+            # For activity_logs (timestamp with time zone), ensure end_date includes the entire day
+            if table_name == "activity_logs":
+                # Append 'T23:59:59.999Z' to cover the whole end day in UTC
+                full_end_date = f"{end_date}T23:59:59.999Z" 
+                query_params.append(f"{date_column}=lte.{urllib.parse.quote(full_end_date)}")
+            else:
+                query_params.append(f"{date_column}=lte.{urllib.parse.quote(str(end_date))}")
+        # --- End re-enabled date filters ---
         
         if filters:
             for key, value in filters.items():
@@ -164,7 +172,8 @@ def fetch_table(table_name, select="*", order=None, limit=None, start_date=None,
         
         logging.info(f"Response status from Supabase for {table_name}: {response.status_code}")
 
-        if response.status_code == 200:
+        # --- FIX: Accept 206 as a successful status code ---
+        if response.status_code in [200, 206]:
             records = response.json()
             all_records.extend(records)
 
@@ -223,7 +232,13 @@ def fetch_summary(table_name, field, start_date=None, end_date=None):
     if start_date:
         params[f"{date_column}"] = f"gte.{urllib.parse.quote(str(start_date))}"
     if end_date:
-        params[f"{date_column}"] = f"lte.{urllib.parse.quote(str(end_date))}"
+        # For activity_logs (timestamp with time zone), ensure end_date includes the entire day
+        if table_name == "activity_logs":
+            # Append 'T23:59:59.999Z' to cover the whole end day in UTC
+            full_end_date = f"{end_date}T23:59:59.999Z" 
+            params[f"{date_column}"] = f"lte.{urllib.parse.quote(full_end_date)}"
+        else:
+            params[f"{date_column}"] = f"lte.{urllib.parse.quote(str(end_date))}"
 
     logging.info(f"Attempting to fetch summary from URL: {url} with params: {params} and headers: {HEADERS}")
     response = requests.get(url, headers=HEADERS.copy(), params=params)
@@ -961,7 +976,7 @@ def generate_recommendation(historical_series, forecast_results, metric_name):
         if change_percent > 5:
             recommendation += " This indicates a strong positive growth. Consider investing more in strategies that have driven this success."
         elif change_percent < -5:
-            recommendation += " This suggests a potential decline. It's crucial to analyze recent activities and re-evaluate your strategy to mitigate this trend."
+            recommendation += " This suggests a potential decline . It's crucial to analyze recent activities and re-evaluate your strategy to mitigate this trend."
         else:
             recommendation += " This indicates a stable trend. Continue optimizing current efforts and explore new avenues for growth."
         
