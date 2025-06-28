@@ -65,7 +65,16 @@ async function fetchActivityLogs(page, filters) {
             return null;
         }
 
-        const idToken = await user.getIdToken();
+        // Ensure we await the ID token to guarantee it's fetched before the request
+        const idToken = await user.getIdToken(true); // true forces a refresh, ensuring latest token/claims
+        
+        if (!idToken) {
+            console.error("Firebase ID token is null or undefined after getIdToken(). Cannot fetch activity logs.");
+            showCustomAlert("Authentication token not available. Please try logging in again.", "Authentication Error");
+            showLogLoadingOverlay(false);
+            return null;
+        }
+
         const queryParams = new URLSearchParams({
             page: page,
             limit: PAGE_SIZE,
@@ -74,7 +83,11 @@ async function fetchActivityLogs(page, filters) {
             user_id: filters.userId || ''
         }).toString();
 
-        const response = await fetch(`${API_BASE_URL}/activity_logs?${queryParams}`, {
+        const requestUrl = `${API_BASE_URL}/activity_logs?${queryParams}`;
+        console.log("Fetching activity logs from URL:", requestUrl); // Log the full request URL
+        console.log("Authorization Header being sent:", `Bearer ${idToken.substring(0, 20)}...`); // Log part of the token for verification
+
+        const response = await fetch(requestUrl, {
             headers: {
                 'Authorization': `Bearer ${idToken}`
             }
@@ -82,10 +95,12 @@ async function fetchActivityLogs(page, filters) {
 
         if (!response.ok) {
             const errorData = await response.json();
+            console.error(`API response error (${response.status}):`, errorData); // Log full error response
             throw new Error(errorData.error || response.statusText);
         }
 
         const data = await response.json();
+        console.log("Activity logs data received:", data); // Log the received data
         return data;
 
     } catch (error) {
@@ -143,21 +158,6 @@ async function updateActivityLogView() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Log page view
-    window.addEventListener('tokenAvailable', () => {
-        logActivity("PAGE_VIEW", "Viewed Activity Log page.");
-        console.log("Token available. Initializing activity log fetch.");
-        updateActivityLogView();
-    }, { once: true });
-
-    if (window.currentUserToken) {
-        logActivity("PAGE_VIEW", "Viewed Activity Log page.");
-        console.log("Authentication token already found. Initializing activity log fetch immediately.");
-        updateActivityLogView();
-    } else {
-        console.log("Waiting for authentication token for activity log page...");
-    }
-
     const activityFilterForm = document.getElementById('activityFilterForm');
     const filterStartDateInput = document.getElementById('filterStartDate');
     const filterEndDateInput = document.getElementById('filterEndDate');
@@ -165,12 +165,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const prevPageBtn = document.getElementById('prevPageBtn');
     const nextPageBtn = document.getElementById('nextPageBtn');
 
-    // Set default dates for the filter to the last 30 days
+    // Set default dates for the filter: very wide range for initial testing
     const today = new Date();
-    const thirtyDaysAgo = new Date(today);
-    thirtyDaysAgo.setDate(today.getDate() - 30);
+    // Default to the beginning of 2020 for a very wide range
+    filterStartDateInput.value = '2020-01-01'; 
     filterEndDateInput.value = today.toISOString().split('T')[0];
-    filterStartDateInput.value = thirtyDaysAgo.toISOString().split('T')[0];
     
     // Initial fetch of logs (will happen after token available)
     currentFilters = {
@@ -178,6 +177,22 @@ document.addEventListener('DOMContentLoaded', () => {
         endDate: filterEndDateInput.value,
         userId: filterUserIdInput.value
     };
+
+    // Listen for Firebase token availability
+    window.addEventListener('tokenAvailable', () => {
+        logActivity("PAGE_VIEW", "Viewed Activity Log page.");
+        console.log("Token available. Initializing activity log fetch.");
+        updateActivityLogView();
+    }, { once: true });
+
+    // Check if the token is already available on direct page load
+    if (window.currentUserToken) {
+        logActivity("PAGE_VIEW", "Viewed Activity Log page.");
+        console.log("Authentication token already found. Initializing activity log fetch immediately.");
+        updateActivityLogView();
+    } else {
+        console.log("Waiting for authentication token for activity log page...");
+    }
 
 
     activityFilterForm.addEventListener('submit', async (e) => {
