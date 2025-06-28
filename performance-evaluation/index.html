@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Performance Evaluation</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+        <link rel="stylesheet" href="/style/style.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
+        <!-- Include Chart.js library -->
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    </head>
+
+    <body>
+        <div class="d-flex vh-100">
+            <!-- Sidebar -->
+            <div id="sidebar-container"></div>
+            <!-- Main content -->
+            <main class="flex-grow-1 p-4 d-flex flex-column gap-3 container-fluid" style="background-color: #fefef6;">
+                <!-- Header with the title "Performance Evaluation" in the top-left and a filter toggle button -->
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 id="welcome-message" class="fw-semibold text-muted mb-0">Performance Evaluation</h5>
+                    <!-- Filter toggle button - now opens/closes the fixed filter panel -->
+                    <button class="btn dashboard-btn-gradient" type="button" id="toggleFilterButton">
+                        <i class="fas fa-filter me-2"></i> Toggle Filters
+                    </button>
+                </div>
+
+                <!-- Visualizations Container (initially hidden) -->
+                <div id="visualization-container" class="mt-4 row g-3">
+                     <!-- Left Column: KPI Summary Boxes -->
+                    <div class="col-md-3 d-flex flex-column gap-2">
+                        <!-- Engagement Rate KPI Summary -->
+                        <div class="card p-4 rounded-lg shadow-lg flex-grow-1 d-flex flex-column justify-content-center summary-total-card">
+                            <h4 class="fw-bold text-white mb-2 text-start">Engagement Rate</h4>
+                            <p class="mb-1 text-current">Current: <span id="engagementRateCurrent" class="fw-bold text-muted">N/A</span></p>
+                            <p class="mb-0 text-current">Goal: <span id="engagementRateGoal" class="fw-bold text-muted">N/A</span></p>
+                        </div>
+
+                        <!-- Reach KPI Summary -->
+                        <div class="card p-4 rounded-lg shadow-lg flex-grow-1 d-flex flex-column justify-content-center summary-total-card">
+                            <h4 class="fw-bold text-white mb-2 text-start">Reach</h4>
+                            <p class="mb-1 text-current">Current: <span id="reachCurrent" class="fw-bold text-muted">N/A</span></p>
+                            <p class="mb-0 text-current">Goal: <span id="reachGoalDisplay" class="fw-bold text-muted">N/A</span></p>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Chart Containers -->
+                    <div class="col-md-9 d-flex flex-column gap-2">
+                        <!-- Engagement Rate Chart -->
+                        <div id="engagement-chart-container" class="chart-container-style flex-grow-1 text-center d-flex flex-column align-items-stretch">
+                            <h5 class="fw-bold mb-3">Engagement Rate Over Time</h5>
+                            <canvas id="engagementChart" style="max-height: 250px;"></canvas>
+                            <p id="engagementInsight" class="mt-3 p-2 bg-light rounded text-muted text-start small-text-recommendation"></p>
+                            <!-- Loading overlay for engagement chart -->
+                            <div id="engagementLoadingOverlay" class="chart-loading-overlay d-none">
+                                <div class="spinner"></div>
+                                <p class="text-primary mt-3">Loading engagement data...</p>
+                            </div>
+                        </div>
+
+                        <!-- Reach Chart -->
+                        <div id="reach-chart-container" class="chart-container-style flex-grow-1 text-center d-flex flex-column align-items-stretch">
+                            <h5 class="fw-bold mb-3">Reach Over Time</h5>
+                            <canvas id="reachChart" style="max-height: 250px;"></canvas>
+                            <p id="reachInsight" class="mt-3 p-2 bg-light rounded text-muted text-start small-text-recommendation"></p>
+                             <!-- Loading overlay for reach chart -->
+                            <div id="reachLoadingOverlay" class="chart-loading-overlay d-none">
+                                <div class="spinner"></div>
+                                <p class="text-primary mt-3">Loading reach data...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+        
+        <!-- Custom Alert Modal Structure -->
+        <div class="modal fade" id="customAlertModal" tabindex="-1" aria-labelledby="customAlertModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="customAlertModalLabel">Notification</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body" id="customAlertModalBody">
+                        <!-- Message will be inserted here by JavaScript -->
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter Panel Structure (now fixed and sliding from the right) -->
+        <div id="filterPanel" class="card rounded-lg shadow-lg">
+            <div class="panel-header">
+                <h5 class="panel-title">Data Filters and Goal Settings</h5>
+                <button type="button" class="btn-close" id="closeFilterPanelButton" aria-label="Close"></button>
+            </div>
+            <form id="performanceFilterForm">
+                <div class="row g-3 mb-4">
+                    <!-- Date Range Selection -->
+                    <div class="col-md-12"> <!-- Adjusted to full width within panel -->
+                        <label for="dateRangeSelect" class="form-label fw-semibold">Select Data Range:</label>
+                        <select class="form-select date-input" id="dateRangeSelect">
+                            <option value="3months">Last 3 Months</option>
+                            <option value="6months">Last 6 Months</option>
+                            <option value="lastyear">Last Year</option>
+                            <option value="alltime">All-Time</option>
+                            <option value="custom">Custom Range</option>
+                        </select>
+                    </div>
+                    <!-- Custom Date Range Inputs (initially hidden using d-none Bootstrap class) -->
+                    <div class="col-md-12 d-flex align-items-end gap-2 d-none" id="customDateRange">
+                        <div>
+                            <label for="startDate" class="form-label fw-semibold">Start Date:</label>
+                            <input type="date" id="startDate" class="form-control date-input">
+                        </div>
+                        <div>
+                            <label for="endDate" class="form-label fw-semibold">End Date:</label>
+                            <input type="date" id="endDate" class="form-control date-input">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <!-- Goal Value Settings -->
+                    <div class="col-md-12"> <!-- Adjusted to full width within panel -->
+                        <label for="reachGoal" class="form-label fw-semibold">Reach Goal:</label>
+                        <input type="number" id="reachGoal" class="form-control" placeholder="e.g., 100000" min="0">
+                    </div>
+                    <div class="col-md-12"> <!-- Adjusted to full width within panel -->
+                        <label for="engagementGoal" class="form-label fw-semibold">Engagement Rate Goal (%):</label>
+                        <input type="number" id="engagementGoal" class="form-control" placeholder="e.g., 5.0" step="0.1" min="0" max="100">
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <!-- Platform Filter -->
+                    <div class="col-md-12"> <!-- Adjusted to full width within panel -->
+                        <label for="platformFilter" class="form-label fw-semibold">Filter by Platform:</label>
+                        <select class="form-select date-input" id="platformFilter">
+                            <option value="all">All Platforms</option>
+                            <option value="facebook">Facebook</option>
+                            <option value="tiktok">TikTok</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-end">
+                    <button type="submit" class="btn dashboard-btn-gradient">Apply Filters</button>
+                </div>
+                <p class="text-muted text-center mt-3">Adjust filters (Date, Goals, Platform) and click 'Apply Filters' to view performance data.</p>
+            </form>
+        </div>
+
+        <script src="/js/loadSidebar.js" type="module"></script>
+        <script src="/js/auth.js" type="module"></script>
+        <script type="module" src="/js/performance-evaluation.js"></script>
+    </body>
+</html>

@@ -2,7 +2,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const sidebarContainer = document.getElementById("sidebar-container");
   if (sidebarContainer) {
     try {
-      const response = await fetch("components/sidebar.html");
+      const response = await fetch("/components/sidebar.html");
       const html = await response.text();
       sidebarContainer.innerHTML = html;
 

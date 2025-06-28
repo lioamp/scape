@@ -1,18 +1,22 @@
 // Function to fetch data for TikTok, Facebook, or both
 export async function fetchPlatformData(platform) { // Removed timeRange parameter
     let normalizedData = [];
-    // Updated CACHE_KEY to remove timeRange as filtering is now client-side
     const CACHE_KEY = `platformData_${platform}`; 
     const CACHE_EXPIRATION_MS = 5 * 60 * 1000; // 5 minutes
 
-    // Removed startDate and dateQueryParam logic as filtering is now client-side
-
     try {
+        const token = window.currentUserToken; // Get token from global scope set by auth.js
+        if (!token) {
+            console.error(`Authentication token not available for ${platform} data. Please ensure you are logged in. Returning empty data.`);
+            // Optionally, show a custom alert here too, but typically done by auth.js or calling script.
+            // showCustomAlert("Authentication token not available.", "Authentication Required");
+            return { rawData: [] };
+        }
+
         // Try to load from cache
         const cachedData = localStorage.getItem(CACHE_KEY);
         if (cachedData) {
             const { data, timestamp } = JSON.parse(cachedData);
-            // Check if cached data is still valid
             if (Date.now() - timestamp < CACHE_EXPIRATION_MS) {
                 console.log(`Using cached data for platform: ${platform}`);
                 return { rawData: data };
@@ -22,14 +26,25 @@ export async function fetchPlatformData(platform) { // Removed timeRange paramet
         }
 
         console.log(`Fetching data for ${platform} (from API)...`);
+        
+        // Headers for authenticated requests
+        const authHeaders = {
+            'Authorization': `Bearer ${token}` 
+        };
+
         if (platform === 'all') {
             const [tiktokResponse, facebookResponse] = await Promise.all([
-                fetch('http://127.0.0.1:5000/api/tiktokdata'), // Removed date filter
-                fetch('http://127.0.0.1:5000/api/facebookdata') // Removed date filter
+                fetch('http://127.0.0.1:5000/api/tiktokdata', { headers: authHeaders }),
+                fetch('http://127.0.0.1:5000/api/facebookdata', { headers: authHeaders })
             ]);
 
             let tiktokRawData = tiktokResponse.ok ? await tiktokResponse.json() : [];
             let facebookRawData = facebookResponse.ok ? await facebookResponse.json() : [];
+
+            // IMPORTANT: Add console logs here to inspect the raw data
+            console.log(`Raw TikTok data fetched for dashboard:`, tiktokRawData);
+            console.log(`Raw Facebook data fetched for dashboard:`, facebookRawData);
+
 
             const normalizedTikTok = tiktokRawData.map(item => ({
                 date: item.date,
@@ -39,8 +54,8 @@ export async function fetchPlatformData(platform) { // Removed timeRange paramet
             }));
 
             const normalizedFacebook = facebookRawData.map(item => ({
-                date: item.date || item.Date,
-                reach: item.reach ?? item.Reach ?? 0,
+                date: item.date || item.Date, // Handle both 'date' and 'Date' for safety
+                reach: item.reach ?? item.Reach ?? 0, // Handle both 'reach' and 'Reach' for safety
                 engagement: (item.likes ?? 0) + (item.comments ?? 0) + (item.shares ?? 0),
                 sales: item.sales ?? item.Sales ?? 0
             }));
@@ -48,9 +63,10 @@ export async function fetchPlatformData(platform) { // Removed timeRange paramet
             normalizedData = [...normalizedTikTok, ...normalizedFacebook];
 
         } else if (platform === 'tiktok') {
-            const response = await fetch('http://127.0.0.1:5000/api/tiktokdata'); // Removed date filter
+            const response = await fetch('http://127.0.0.1:5000/api/tiktokdata', { headers: authHeaders });
             if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
             let rawData = await response.json();
+            console.log(`Raw TikTok data fetched for dashboard (${platform} specific):`, rawData);
             normalizedData = rawData.map(item => ({
                 date: item.date,
                 reach: item.views ?? 0,
@@ -59,9 +75,10 @@ export async function fetchPlatformData(platform) { // Removed timeRange paramet
             }));
 
         } else if (platform === 'facebook') {
-            const response = await fetch('http://127.0.0.1:5000/api/facebookdata'); // Removed date filter
+            const response = await fetch('http://127.0.0.1:5000/api/facebookdata', { headers: authHeaders });
             if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
             let rawData = await response.json();
+            console.log(`Raw Facebook data fetched for dashboard (${platform} specific):`, rawData);
             normalizedData = rawData.map(item => ({
                 date: item.date || item.Date,
                 reach: item.reach ?? item.Reach ?? 0,
@@ -91,11 +108,14 @@ export async function fetchSalesChartData(timeRange) {
     const CACHE_EXPIRATION_MS = 5 * 60 * 1000; // 5 minutes
 
     try {
+        const token = window.currentUserToken; // Get token for sales data too, just in case
+        // Only include Authorization header if token exists. Sales data might not require it.
+        const authHeaders = token ? { 'Authorization': `Bearer ${token}` } : {}; 
+
         // Try to load from cache
         const cachedData = localStorage.getItem(CACHE_KEY);
         if (cachedData) {
             const { data, timestamp } = JSON.parse(cachedData);
-            // Check if cached data is still valid
             if (Date.now() - timestamp < CACHE_EXPIRATION_MS) {
                 console.log(`Using cached sales data for time range: ${timeRange}`);
                 return data;
@@ -116,7 +136,8 @@ export async function fetchSalesChartData(timeRange) {
                 startDate = new Date(now.getFullYear(), now.getMonth() - 5, 1);
                 break;
             case 'lastYear':
-                startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+                // For 'lastYear', fetch data from the 1st day of the current month, one year ago.
+                startDate = new Date(now.getFullYear() - 1, now.getMonth(), 1); 
                 break;
             case 'allTime':
             default:
@@ -131,7 +152,7 @@ export async function fetchSalesChartData(timeRange) {
         }
 
         console.log("Fetching sales chart data from URL (from API):", url);
-        const response = await fetch(url);
+        const response = await fetch(url, { headers: authHeaders }); // Added headers here
         if (!response.ok) {
             throw new Error(`HTTP error! Status: ${response.status}`);
         }
@@ -157,14 +178,17 @@ export async function fetchSalesChartData(timeRange) {
 // Function to fetch top performers data
 export async function fetchTopPerformersData(timeRange) { // Added timeRange parameter
     const CACHE_KEY = `topPerformersData_${timeRange}`; // Updated cache key to include timeRange
-    const CACHE_EXPIRATION_MS = 5 * 60 * 1000; // 5 minutes
+    const CACHE_EXPIRATION_MS = 5 * 1000; // 5 seconds
 
     try {
+        const token = window.currentUserToken; // Get token for top performers data too
+        // Only include Authorization header if token exists.
+        const authHeaders = token ? { 'Authorization': `Bearer ${token}` } : {};
+
         // Try to load from cache
         const cachedData = localStorage.getItem(CACHE_KEY);
         if (cachedData) {
             const { data, timestamp } = JSON.parse(cachedData);
-            // Check if cached data is still valid
             if (Date.now() - timestamp < CACHE_EXPIRATION_MS) {
                 console.log(`Using cached top performers data for time range: ${timeRange}.`);
                 return data;
@@ -186,7 +210,7 @@ export async function fetchTopPerformersData(timeRange) { // Added timeRange par
                 startDate = new Date(now.getFullYear(), now.getMonth() - 5, 1);
                 break;
             case 'lastYear':
-                startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+                startDate = new Date(now.getFullYear() - 1, now.getMonth(), 1); // Consistent with main.js now
                 break;
             case 'allTime':
             default:
@@ -202,7 +226,7 @@ export async function fetchTopPerformersData(timeRange) { // Added timeRange par
         }
 
         console.log("Fetching top performers data from URL (from API):", url);
-        const response = await fetch(url);
+        const response = await fetch(url, { headers: authHeaders }); // Added headers here
         if (!response.ok) {
             throw new Error(`HTTP error! Status: ${response.status}`);
         }

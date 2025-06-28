@@ -3,6 +3,7 @@ import { getMonthYearAbbreviation } from './dashboard-utils.js';
 import { fetchPlatformData, fetchSalesChartData, fetchTopPerformersData } from './dashboard-dataFetcher.js';
 import { updateSummaryTotals } from './dashboard-summaryUpdater.js';
 import { renderReachChart, renderEngagementChart, renderSalesChart, renderTopPerformersChart } from './dashboard-chartRenderers.js';
+import { logActivity } from "/js/auth.js"; // Import the logActivity function
 
 /**
  * Merges two arrays of data, summing common date entries and including unique ones.
@@ -68,39 +69,43 @@ function mergeData(data1, data2) {
  */
 function filterAndAggregateData(data, timeRange) {
     let filteredData = [];
-    const now = new Date();
-    let startDate;
+    const now = new Date(); // Get today's date
 
-    // Determine the start date for filtering based on timeRange
+    // The end date for filtering is always today's date, as per your request
+    const effectiveEndDate = now; 
+    console.log("Effective End Date for Filtering (today's date):", effectiveEndDate.toISOString().split('T')[0]);
+
+    let startDateFilter;
+    // Determine the start date for filtering based on timeRange, relative to today's date
     switch (timeRange) {
         case 'last3months':
-            // Set startDate to the beginning of the month, 3 months ago from current month
-            startDate = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+            // Start of the month 3 months ago from today's current month
+            startDateFilter = new Date(now.getFullYear(), now.getMonth() - 2, 1);
             break;
         case 'last6months':
-            // Set startDate to the beginning of the month, 6 months ago from current month
-            startDate = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+            // Start of the month 6 months ago from today's current month
+            startDateFilter = new Date(now.getFullYear(), now.getMonth() - 5, 1);
             break;
         case 'lastYear':
-            // Set startDate to one year ago from the current date.
-            // This is then used to filter daily data, which is then aggregated by month.
-            startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+            // Start of the month 1 year ago from today's current month
+            // Example: if today is June 25, 2025 (month 5), start date is June 1, 2024 (month 5)
+            startDateFilter = new Date(now.getFullYear() - 1, now.getMonth(), 1);
             break;
         case 'allTime':
         default:
-            startDate = null; // No date filtering, include all data
+            startDateFilter = null; // No date filtering, include all data up to effectiveEndDate
             break;
     }
+    console.log("Calculated Start Date for Filtering (1st of the month):", startDateFilter ? startDateFilter.toISOString().split('T')[0] : "All Time");
 
-    // Apply date filtering if a startDate is defined
-    if (startDate) {
-        filteredData = data.filter(item => {
-            const itemDate = new Date(item.date);
-            return itemDate >= startDate;
-        });
-    } else {
-        filteredData = [...data]; // If 'allTime', use a copy of the original data
-    }
+
+    // Apply date filtering
+    filteredData = data.filter(item => {
+        const itemDate = new Date(item.date);
+        return (!startDateFilter || itemDate >= startDateFilter) && itemDate <= effectiveEndDate;
+    });
+    console.log("Data filtered based on calculated range:", filteredData);
+
 
     // Aggregate filtered data by month and year
     // The map key will be "YYYY-MM" to ensure unique month-year combinations
@@ -275,6 +280,7 @@ async function renderTopPerformers(timeRange) { // Added timeRange parameter
 
 /**
  * Main function to render all charts on the dashboard based on the selected platform and time range.
+ * This function is now called AFTER the authentication token is available.
  * @param {string} platform - The platform to display data for ('tiktok', 'facebook', or 'all').
  * @param {string} timeRange - The time range to filter data ('last3months', 'last6months', 'lastYear', 'allTime').
  */
@@ -300,12 +306,14 @@ async function renderAllCharts(platform = 'all', timeRange = 'lastYear') {
         // Frontend will filter and aggregate data.
         [reachEngagementData, salesChartRawData] = await Promise.all([
             fetchPlatformData(platform), 
-            fetchSalesChartData(timeRange)
+            fetchSalesChartData(timeRange) // Keep passing timeRange for Sales to filter at backend
         ]);
 
         // Combine and aggregate data
         // This is where filtering based on timeRange happens for Reach/Engagement/Sales
         const combinedRawData = mergeData(reachEngagementData.rawData, salesChartRawData);
+        // Pass the effectiveEndDate to filterAndAggregateData if needed, 
+        // but the function itself now calculates it dynamically based on the data.
         const { labels, reachData, engagementData, salesData } = filterAndAggregateData(combinedRawData, timeRange);
 
         // Render charts and summary individually with their own loading states
@@ -331,10 +339,25 @@ async function renderAllCharts(platform = 'all', timeRange = 'lastYear') {
     }
 }
 
-// Run after DOM is fully loaded
+// Run after DOM is fully loaded, but wait for the authentication token
 document.addEventListener("DOMContentLoaded", () => {
-    // Initial render with 'all' platforms selected and 'lastYear' time range by default
-    renderAllCharts('all', 'lastYear');
+    // Log the page view *after* authentication token is available and before charts render
+    window.addEventListener('tokenAvailable', () => {
+        console.log("Token available (from event listener). Initializing dashboard data fetches.");
+        logActivity("PAGE_VIEW", "Viewed Dashboard page."); // Log page view here
+        // Initial render with 'all' platforms selected and 'lastYear' time range by default
+        renderAllCharts('all', 'lastYear');
+    }, { once: true }); // Use { once: true } to ensure it only runs once
+
+    // Also, check if the token is already available (e.g., on subsequent page loads or after a quick login)
+    // This handles cases where auth.js might load and dispatch the token event before this listener is fully set up.
+    if (window.currentUserToken) {
+        console.log("Authentication token already found. Initializing dashboard data fetches immediately.");
+        logActivity("PAGE_VIEW", "Viewed Dashboard page."); // Log page view here
+        renderAllCharts('all', 'lastYear');
+    } else {
+        console.log("Waiting for tokenAvailable event to initialize dashboard data...");
+    }
 
     // Add event listener for the platform filter dropdown
     const platformFilterDropdown = document.getElementById('platformFilterDropdown');

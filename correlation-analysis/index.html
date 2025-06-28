@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Correlation Analysis</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <!-- Custom Stylesheet -->
+    <link rel="stylesheet" href="/style/style.css" />
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
+    <!-- Page-specific loading overlay styles -->
+    <style>
+      /* Style for the chart container, making it a positioning context for the overlay */
+      .chart-container-style {
+          position: relative; /* Crucial for positioning the loading overlay inside */
+          border-radius: 0.75rem; /* Re-applying border-radius as it was inherited */
+          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+          padding: 1.5rem;
+          background-color: white;
+      }
+
+      .loading-overlay {
+          position: absolute; /* Positioned relative to its parent .chart-container-style */
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background-color: rgba(255, 255, 255, 0.9); /* Semi-transparent white background */
+          display: none; /* Hidden by default, shown by JS */
+          flex-direction: column; /* Stack spinner and text vertically */
+          justify-content: center; /* Center vertically */
+          align-items: center; /* Center horizontally */
+          z-index: 10; /* Ensure it's above chart content */
+          border-radius: inherit; /* Inherit border-radius from parent card */
+      }
+
+      /* Custom class for spinner color */
+      .text-spinner-color {
+          color: #5A4CD1 !important; /* Using !important to ensure override if needed */
+      }
+
+      .loading-text {
+          font-size: 1.1rem;
+          color: #5A4CD1; /* Match spinner color */
+          font-weight: 500;
+          margin-top: 0.5rem; /* Space below spinner */
+      }
+    </style>
+    <!-- Bootstrap JS (bundle includes Popper) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Chart.js for visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Chart.js Annotation Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.2.1/dist/chartjs-plugin-annotation.min.js"></script>
+  </head>
+
+  <body>
+    <div class="d-flex vh-100">
+      <!-- Sidebar container, will be loaded by loadSidebar.js -->
+      <div id="sidebar-container"></div>
+
+      <!-- Main content -->
+      <main class="flex-grow-1 p-4 d-flex flex-column gap-3 container-fluid" style="background-color: #fefef6;">
+        <!-- Header with the title "Correlation Analysis" in the top-left and a filter toggle button -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 id="welcome-message" class="fw-semibold text-muted mb-0">Correlation Analysis</h5>
+                    <!-- Filter toggle button - now opens/closes the fixed filter panel -->
+                    <button class="btn dashboard-btn-gradient" type="button" id="toggleFilterButton">
+                        <i class="fas fa-filter me-2"></i> Toggle Filters
+                    </button>
+                </div>
+
+        <!-- Placeholder for custom alert modal -->
+        <div class="modal fade" id="customAlertModal" tabindex="-1" aria-labelledby="customAlertModalLabel" aria-hidden="true">
+          <div class="modal-dialog modal-dialog-centered">
+              <div class="modal-content">
+                  <div class="modal-header">
+                      <h5 class="modal-title" id="customAlertModalLabel">Notification</h5>
+                      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                  </div>
+                  <div class="modal-body" id="customAlertModalBody">
+                      <!-- Alert message will be inserted here -->
+                  </div>
+                  <div class="modal-footer">
+                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                  </div>
+              </div>
+          </div>
+        </div>
+
+        <!-- Filters applied display (Optional, if needed to show active filters) -->
+        <div id="filtersAppliedDisplay" class="mb-3 d-none">
+          <span class="badge bg-primary me-2"></span>
+        </div>
+
+        <!-- Visualizations Container -->
+        <div id="visualizationsContainer" class="d-flex flex-column gap-3">
+          <!-- Engagement / Reach Visualization -->
+          <div id="engageReach" class="visualization text-center chart-container-style">
+            <h3>Engagement / Reach Correlation</h3>
+            <div id="engageReachLoadingOverlay" class="loading-overlay">
+                <div class="spinner-border text-spinner-color" role="status"> <!-- Changed class here -->
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="loading-text">Loading...</p>
+            </div>
+            <canvas id="engageReachChart"></canvas>
+            <div id="engageReachRecommendation" class="small-text-recommendation mt-3 mx-auto" style="max-width: 600px;">
+              <!-- Recommendation text will be inserted here by JavaScript -->
+            </div>
+          </div>
+
+          <!-- Engagement / Sales Visualization -->
+          <div id="engageSales" class="visualization text-center chart-container-style">
+            <h3>Engagement / Sales Correlation</h3>
+            <div id="engageSalesLoadingOverlay" class="loading-overlay">
+                <div class="spinner-border text-spinner-color" role="status"> <!-- Changed class here -->
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="loading-text">Loading...</p>
+            </div>
+            <canvas id="engageSalesChart"></canvas>
+            <div id="engageSalesRecommendation" class="small-text-recommendation mt-3 mx-auto" style="max-width: 600px;">
+              <!-- Recommendation text will be inserted here by JavaScript -->
+            </div>
+          </div>
+
+          <!-- Reach / Sales Visualization -->
+          <div id="reachSales" class="visualization text-center chart-container-style">
+            <h3>Reach / Sales Correlation</h3>
+            <div id="reachSalesLoadingOverlay" class="loading-overlay">
+                <div class="spinner-border text-spinner-color" role="status"> <!-- Changed class here -->
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="loading-text">Loading...</p>
+            </div>
+            <canvas id="reachSalesChart"></canvas>
+            <div id="reachSalesRecommendation" class="small-text-recommendation mt-3 mx-auto" style="max-width: 600px;">
+              <!-- Recommendation text will be inserted here by JavaScript -->
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <!-- Filter Panel (hidden by default) -->
+      <div id="filterPanel" class="filter-panel">
+        <div class="panel-header">
+            <h4 class="panel-title">Filter Options</h4>
+            <button type="button" class="btn-close" id="closeFilterPanelButton" aria-label="Close"></button>
+        </div>
+        <form id="filterForm">
+            <div class="row g-3 mb-4">
+                <!-- Date Range -->
+                <div class="col-md-12">
+                    <label for="startDate" class="form-label fw-semibold">Start Date:</label>
+                    <input type="date" id="startDate" class="form-control date-input">
+                </div>
+                <div class="col-md-12">
+                    <label for="endDate" class="form-label fw-semibold">End Date:</label>
+                    <input type="date" id="endDate" class="form-control date-input">
+                </div>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <!-- Platform Filter -->
+                <div class="col-md-12">
+                    <label for="platformFilter" class="form-label fw-semibold">Filter by Platform:</label>
+                    <select class="form-select date-input" id="platformFilter">
+                        <option value="all">All Platforms</option>
+                        <option value="facebook">Facebook</option>
+                        <option value="tiktok">TikTok</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-end">
+                <button type="submit" class="btn dashboard-btn-gradient">Apply Filters</button>
+            </div>
+            <p class="text-muted text-center mt-3">Adjust filters (Date, Platform) and click 'Apply Filters' to view correlation data.</p>
+        </form>
+      </div>
+    </div>
+
+    <!-- JavaScript files -->
+    <script src="/js/loadSidebar.js" type="module"></script>
+    <script src="/js/auth.js" type="module"></script>
+    <script type="module" src="/js/correlation-analysis.js"></script>
+  </body>
+</html>
