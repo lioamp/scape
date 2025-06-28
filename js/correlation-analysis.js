@@ -67,6 +67,10 @@ function createCorrelationChart(chartId, title, xLabel, yLabel, data, correlatio
     destroyChart(chartId); // Destroy existing chart before creating a new one
 
     const ctx = document.getElementById(chartId).getContext('2d');
+
+    // Calculate average Y value for the horizontal line
+    const averageYValue = data.length > 0 ? data.reduce((sum, d) => sum + d.y, 0) / data.length : 0;
+
     charts[chartId] = new Chart(ctx, {
         type: 'scatter',
         data: {
@@ -96,26 +100,29 @@ function createCorrelationChart(chartId, title, xLabel, yLabel, data, correlatio
                         }
                     }
                 },
-                // Annotation plugin might not be loaded or configured for this project.
-                // Removing it to avoid potential errors if not fully set up.
-                // annotation: {
-                //     annotations: {
-                //         line1: {
-                //             type: 'line',
-                //             mode: 'horizontal',
-                //             scaleID: 'y',
-                //             value: data.reduce((sum, d) => sum + d.y, 0) / data.length, // Avg Y value
-                //             borderColor: 'rgb(255, 99, 132)',
-                //             borderWidth: 1,
-                //             borderDash: [5, 5],
-                //             label: {
-                //                 enabled: true,
-                //                 content: 'Avg ' + yLabel,
-                //                 position: 'end'
-                //             }
-                //         }
-                //     }
-                // }
+                // Re-enable annotation plugin configuration
+                annotation: {
+                    annotations: {
+                        line1: {
+                            type: 'line',
+                            mode: 'horizontal',
+                            scaleID: 'y',
+                            value: averageYValue, // Avg Y value
+                            borderColor: 'rgb(255, 99, 132)',
+                            borderWidth: 1,
+                            borderDash: [5, 5],
+                            label: {
+                                enabled: true,
+                                content: 'Avg ' + yLabel,
+                                position: 'end',
+                                color: 'rgb(255, 99, 132)',
+                                font: {
+                                    size: 10
+                                }
+                            }
+                        }
+                    }
+                }
             },
             scales: {
                 x: {
@@ -282,15 +289,20 @@ async function fetchCorrelationData(startDate = null, endDate = null, platform =
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
+    // Get references to input elements once at the top level of DOMContentLoaded
+    const startDateInput = document.getElementById('startDate');
+    const endDateInput = document.getElementById('endDate');
+    const platformFilterInput = document.getElementById('platformFilter');
+    const filterForm = document.getElementById('filterForm');
+    const toggleFilterButton = document.getElementById('toggleFilterButton');
+    const closeFilterPanelButton = document.getElementById('closeFilterPanelButton');
+    const filterPanel = document.getElementById('filterPanel');
+
+
     // Log the page view when the DOM is loaded and the token is available
     window.addEventListener('tokenAvailable', () => {
         logActivity("PAGE_VIEW", "Viewed Correlation Analysis page."); 
         console.log("Token available. Initializing correlation analysis data fetches.");
-        
-        const filterForm = document.getElementById('filterForm'); // Redefine if it's not global
-        const startDateInput = document.getElementById('startDate');
-        const endDateInput = document.getElementById('endDate');
-        const platformFilterInput = document.getElementById('platformFilter');
         
         // Set default dates for the filter to a wider range that should contain data
         const today = new Date();
@@ -309,11 +321,6 @@ document.addEventListener('DOMContentLoaded', () => {
         logActivity("PAGE_VIEW", "Viewed Correlation Analysis page."); // Log page view here
         console.log("Authentication token already found. Initializing correlation analysis data fetches immediately.");
         
-        const filterForm = document.getElementById('filterForm'); // Redefine if it's not global
-        const startDateInput = document.getElementById('startDate');
-        const endDateInput = document.getElementById('endDate');
-        const platformFilterInput = document.getElementById('platformFilter');
-        
         // Set default dates for the filter to a wider range that should contain data
         const today = new Date();
         const defaultStartDate = '2024-05-01'; 
@@ -326,12 +333,6 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         console.log("Waiting for authentication token for initial correlation analysis load...");
     }
-
-
-    const filterForm = document.getElementById('filterForm');
-    const toggleFilterButton = document.getElementById('toggleFilterButton');
-    const closeFilterPanelButton = document.getElementById('closeFilterPanelButton');
-    const filterPanel = document.getElementById('filterPanel');
 
 
     // Handle filter form submission
