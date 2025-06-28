@@ -3,6 +3,7 @@ import { getMonthYearAbbreviation } from './dashboard-utils.js';
 import { fetchPlatformData, fetchSalesChartData, fetchTopPerformersData } from './dashboard-dataFetcher.js';
 import { updateSummaryTotals } from './dashboard-summaryUpdater.js';
 import { renderReachChart, renderEngagementChart, renderSalesChart, renderTopPerformersChart } from './dashboard-chartRenderers.js';
+import { logActivity } from "/js/auth.js"; // Import the logActivity function
 
 /**
  * Merges two arrays of data, summing common date entries and including unique ones.
@@ -340,9 +341,10 @@ async function renderAllCharts(platform = 'all', timeRange = 'lastYear') {
 
 // Run after DOM is fully loaded, but wait for the authentication token
 document.addEventListener("DOMContentLoaded", () => {
-    // Listen for the custom event from auth.js that signals token readiness
+    // Log the page view *after* authentication token is available and before charts render
     window.addEventListener('tokenAvailable', () => {
         console.log("Token available (from event listener). Initializing dashboard data fetches.");
+        logActivity("PAGE_VIEW", "Viewed Dashboard page."); // Log page view here
         // Initial render with 'all' platforms selected and 'lastYear' time range by default
         renderAllCharts('all', 'lastYear');
     }, { once: true }); // Use { once: true } to ensure it only runs once
@@ -351,6 +353,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // This handles cases where auth.js might load and dispatch the token event before this listener is fully set up.
     if (window.currentUserToken) {
         console.log("Authentication token already found. Initializing dashboard data fetches immediately.");
+        logActivity("PAGE_VIEW", "Viewed Dashboard page."); // Log page view here
         renderAllCharts('all', 'lastYear');
     } else {
         console.log("Waiting for tokenAvailable event to initialize dashboard data...");
