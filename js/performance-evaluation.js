@@ -1,5 +1,3 @@
-// performance-evaluation.js
-
 // Import the logActivity function
 import { logActivity } from "/js/auth.js"; 
 
@@ -52,7 +50,7 @@ function showChartLoadingOverlay(metricType, show) {
 
 
 /**
- * Utility to convert date string (YYYY-MM-DD or YYYY-MM) to a formatted label.
+ * Utility to convert date string (YYYY-MM-DD or WHICH-MM) to a formatted label.
  * e.g., "2023-11-15" becomes "Nov 15, 2023"
  * e.g., "2023-11" becomes "Nov 2023"
  */
@@ -60,12 +58,12 @@ function getFormattedDateLabel(dateStr) {
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const dateParts = dateStr.split('-');
 
-    if (dateParts.length === 3) { // YYYY-MM-DD format (daily/weekly)
+    if (dateParts.length === 3) { // WHICH-MM-DD format (daily/weekly)
         const year = dateParts[0];
         const monthIndex = parseInt(dateParts[1], 10) - 1;
         const day = parseInt(dateParts[2], 10);
         return `${months[monthIndex]} ${day}, ${year}`;
-    } else if (dateParts.length === 2) { // YYYY-MM format (monthly)
+    } else if (dateParts.length === 2) { // WHICH-MM format (monthly)
         const year = dateParts[0];
         const monthIndex = parseInt(dateParts[1], 10) - 1;
         return `${months[monthIndex]} ${year}`;
@@ -152,6 +150,12 @@ async function fetchPerformanceData(startDate, endDate, platform) {
  * @returns {object} The new or updated chart instance.
  */
 function renderChart(chartId, chartInstance, historicalData, label, unit = '', chartType = 'line', goalValue = 0) {
+    // Add a check to ensure Chart is defined
+    if (typeof Chart === 'undefined') {
+        console.error("Chart.js library is not loaded. Please ensure chart.umd.js is loaded as a module before this script.");
+        return null;
+    }
+
     const ctx = document.getElementById(chartId)?.getContext('2d');
     if (!ctx) {
         console.error(`Canvas with ID '${chartId}' not found.`);
@@ -383,10 +387,13 @@ async function showVisualization(metricType, allPerformanceData) {
     let overallEngagementTotal = 0;
     let overallReachForEngagement = 0; 
 
-    allPerformanceData.forEach(d => {
-        overallEngagementTotal += (d.engagement_total || 0); 
-        overallReachForEngagement += (d.reach_total || 0);   
-    });
+    // Access performance_charts_data from the API response
+    if (allPerformanceData && allPerformanceData.performance_charts_data) {
+        allPerformanceData.performance_charts_data.forEach(d => { 
+            overallEngagementTotal += (d.engagement_total || 0); 
+            overallReachForEngagement += (d.reach_total || 0);   
+        });
+    }
 
 
     if (metricType === 'engagement') {
@@ -401,7 +408,9 @@ async function showVisualization(metricType, allPerformanceData) {
         currentChartInstance = engagementChartInstance;
         chartType = 'bar'; 
     } else if (metricType === 'reach') {
-        historicalDataForChart = allPerformanceData.map(d => ({ date: d.date, value: d.reach_total })); 
+        // Access performance_charts_data from the API response
+        historicalDataForChart = (allPerformanceData && allPerformanceData.performance_charts_data) ? 
+                                 allPerformanceData.performance_charts_data.map(d => ({ date: d.date, value: d.reach_total })) : []; 
         chartLabel = 'Reach';
         chartUnit = ''; 
         currentChartInstance = reachChartInstance;
@@ -598,7 +607,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (allPerformanceData) {
             Promise.all([
-                showVisualization('engagement', allPerformanceData),
+                // Pass allPerformanceData directly to showVisualization
+                showVisualization('engagement', allPerformanceData), 
                 showVisualization('reach', allPerformanceData),
             ]).then(() => {
                 console.log("All performance charts displayed.");

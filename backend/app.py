@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, request
-from flask_cors import CORS
+from flask_cors import CORS, cross_origin # Import cross_origin specifically
 import pandas as pd
 import io
 import requests
@@ -22,7 +22,7 @@ load_dotenv()
 
 
 app = Flask(__name__)
-CORS(app)
+CORS(app) # Apply CORS to the entire app globally
 
 logging.basicConfig(level=logging.INFO)
 
@@ -93,72 +93,118 @@ def verify_token(f):
 def fetch_table(table_name, select="*", order=None, limit=None, start_date=None, end_date=None, offset=0, count=False, filters=None):
     """
     Fetches data from a specified Supabase table with optional filters and pagination.
+    This version includes logic to fetch all records if limit is None, handling Supabase's default row limit.
     
     Args:
         table_name (str): The name of the table to fetch from.
         select (str): Columns to select (e.g., "*", "id,name").
         order (str): Column to order by (e.g., "date.asc").
-        limit (int): Maximum number of records to return.
+        limit (int): Maximum number of records to return. If None, all available records are fetched via pagination.
         start_date (str): Start date for filtering (YYYY-MM-DD).
         end_date (str): End date for filtering (YYYY-MM-DD).
-        offset (int): Starting offset for pagination.
-        count (bool): If True, also return the total count of matching rows.
+        offset (int): Starting offset for pagination (used internally for fetching all).
+        count (bool): If True, also return the total count of matching rows (only for the first call).
         filters (dict): Dictionary of additional filters (e.g., {"user_id": "some_uid"}).
 
     Returns:
         tuple or list: (records, total_count) if count=True, else just records.
     """
-    base_url = f"{SUPABASE_URL}/rest/v1/{table_name}"
+    all_records = []
+    current_offset = offset
+    supabase_page_size = 1000 # Supabase's default limit per request if not explicitly set to a lower value.
+
+    # If a specific limit is provided, respect it and do not paginate beyond it.
+    # Otherwise, we will paginate to get all data.
+    effective_limit_per_request = limit if limit is not None and limit < supabase_page_size else supabase_page_size
     
-    query_params = []
-    query_params.append(f"select={urllib.parse.quote(select)}")
+    total_expected_records = float('inf') # Assume infinite until we get count from Supabase
+    is_initial_call = True
 
-    if order:
-        query_params.append(f"order={urllib.parse.quote(order)}")
-    
-    if start_date:
-        query_params.append(f"timestamp=gte.{urllib.parse.quote(str(start_date))}") # Use timestamp for activity logs
-    if end_date:
-        query_params.append(f"timestamp=lte.{urllib.parse.quote(str(end_date))}") # Use timestamp for activity logs
-    
-    if filters:
-        for key, value in filters.items():
-            if value: # Only add filter if value is not empty
-                query_params.append(f"{key}=eq.{urllib.parse.quote(str(value))}")
-
-    if limit is not None:
-        query_params.append(f"limit={limit}")
-    query_params.append(f"offset={offset}")
-
-    full_url = f"{base_url}?{'&'.join(query_params)}"
-
-    current_headers = HEADERS.copy()
-    if count:
-        current_headers["Prefer"] = "count=exact"
-    
-    logging.info(f"Attempting to fetch from URL: {full_url}")
-
-    response = requests.get(full_url, headers=current_headers)
-    
-    logging.info(f"Response status from Supabase for {table_name}: {response.status_code}")
-
-    if response.status_code == 200:
-        records = response.json()
-        total_count = 0
-        if count:
-            try:
-                total_count = int(response.headers.get("Content-Range", "0-*/*").split('/')[-1])
-            except ValueError:
-                total_count = len(records) # Fallback if header is not as expected
+    while True:
+        base_url = f"{SUPABASE_URL}/rest/v1/{table_name}"
         
-        if count:
-            return records, total_count
-        return records
-    else:
-        logging.error(f"Error fetching table {table_name}: {response.status_code} - {response.text}")
-        if count:
-            return [], 0
-        return []
+        query_params = []
+        query_params.append(f"select={urllib.parse.quote(select)}")
+
+        if order:
+            query_params.append(f"order={urllib.parse.quote(order)}")
+        
+        date_column = "date"
+        if table_name == "activity_logs":
+            date_column = "timestamp"
+
+        if start_date:
+            query_params.append(f"{date_column}=gte.{urllib.parse.quote(str(start_date))}")
+        if end_date:
+            query_params.append(f"{date_column}=lte.{urllib.parse.quote(str(end_date))}")
+        
+        if filters:
+            for key, value in filters.items():
+                if value:
+                    query_params.append(f"{key}=eq.{urllib.parse.quote(str(value))}")
+
+        # Always explicitly set limit for each paginated request
+        query_params.append(f"limit={effective_limit_per_request}")
+        query_params.append(f"offset={current_offset}")
+
+        full_url = f"{base_url}?{'&'.join(query_params)}"
+
+        current_headers = HEADERS.copy()
+        if count and is_initial_call: # Only request count on the very first call
+            current_headers["Prefer"] = "count=exact"
+        else:
+            # Ensure Prefer header is not set to 'count=exact' for subsequent paginated calls
+            # unless the original 'count' flag was true for the very first request
+            if "Prefer" in current_headers and not (count and is_initial_call):
+                del current_headers["Prefer"]
+        
+        logging.info(f"Attempting to fetch from URL: {full_url}")
+
+        response = requests.get(full_url, headers=current_headers)
+        
+        logging.info(f"Response status from Supabase for {table_name}: {response.status_code}")
+
+        if response.status_code == 200:
+            records = response.json()
+            all_records.extend(records)
+
+            if is_initial_call and count:
+                try:
+                    # Parse the total count from Content-Range header
+                    content_range = response.headers.get("Content-Range", "0-*/0")
+                    total_expected_records = int(content_range.split('/')[-1])
+                    logging.info(f"Total count from Supabase for {table_name}: {total_expected_records}")
+                except ValueError:
+                    logging.warning(f"Could not parse total count from Content-Range header: {content_range}. Assuming total records based on fetched data.")
+                    total_expected_records = len(records) # Fallback
+            
+            is_initial_call = False # No longer the initial call for subsequent paginated requests
+
+            # If a specific limit was originally requested, and we've fetched enough, stop.
+            if limit is not None and len(all_records) >= limit:
+                all_records = all_records[:limit] # Truncate to the requested limit if we over-fetched
+                break
+            
+            # Continue pagination if more data is expected or if we are fetching all (limit=None)
+            # Stop if the number of records returned is less than the effective_limit_per_request
+            # OR if we have fetched all_records up to the total_expected_records
+            if len(records) < effective_limit_per_request or len(all_records) >= total_expected_records:
+                break # No more data or fetched all required
+            
+            current_offset += len(records) # Increment offset by the number of records actually received
+            logging.info(f"Continuing pagination for {table_name}. Next offset: {current_offset}. Current total fetched: {len(all_records)}")
+
+        else:
+            logging.error(f"Error fetching table {table_name}: {response.status_code} - {response.text}")
+            if count:
+                return [], 0
+            return []
+
+    if count:
+        # Return the actual total records fetched, or the count from the header if it was exact.
+        final_total_count = total_expected_records if total_expected_records != float('inf') else len(all_records)
+        return all_records, final_total_count
+    return all_records
 
 def fetch_summary(table_name, field, start_date=None, end_date=None):
     """
@@ -169,10 +215,15 @@ def fetch_summary(table_name, field, start_date=None, end_date=None):
         "select": f"sum({field})"
     }
     
+    # Determine the correct date column for summary fetches
+    date_column = "date"
+    if table_name == "activity_logs": # Though summary usually won't apply to activity logs directly
+        date_column = "timestamp"
+
     if start_date:
-        params[f"date"] = f"gte.{urllib.parse.quote(str(start_date))}"
+        params[f"{date_column}"] = f"gte.{urllib.parse.quote(str(start_date))}"
     if end_date:
-        params[f"date"] = f"lte.{urllib.parse.quote(str(end_date))}"
+        params[f"{date_column}"] = f"lte.{urllib.parse.quote(str(end_date))}"
 
     logging.info(f"Attempting to fetch summary from URL: {url} with params: {params} and headers: {HEADERS}")
     response = requests.get(url, headers=HEADERS.copy(), params=params)
@@ -223,37 +274,45 @@ def fetch_top_products(limit=5, start_date=None, end_date=None):
 @verify_token
 def facebook_data():
     """API endpoint to get raw Facebook data, ordered by date."""
+    # Ensure limit=None is passed so fetch_table paginates to get all data
     data = fetch_table("facebookdata", order="date.asc", limit=None)
-    logging.info(f"Data fetched from Supabase for Facebook: {data}") # New debug log
+    logging.info(f"Data fetched from Supabase for Facebook: {len(data)} records")
     return jsonify(data)
 
 @app.route('/api/tiktokdata')
 @verify_token
 def tiktok_data():
     """API endpoint to get raw TikTok data, ordered by date."""
+    # Ensure limit=None is passed so fetch_table paginates to get all data
     data = fetch_table("tiktokdata", order="date.asc", limit=None)
-    logging.info(f"Data fetched from Supabase for TikTok: {data}") # New debug log
+    logging.info(f"Data fetched from Supabase for TikTok: {len(data)} records")
     return jsonify(data)
 
 
 @app.route('/api/salesdata')
+@verify_token
 def sales_data():
     """API endpoint to get Sales data, ordered by date, with optional date filtering."""
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
+    # Ensure limit=None is passed so fetch_table paginates to get all data
     data = fetch_table("sales", order="date.asc", limit=None, start_date=start_date, end_date=end_date)
-    logging.info(f"Data fetched from Supabase for Sales: {data}") # New debug log
+    logging.info(f"Data fetched from Supabase for Sales: {len(data)} records")
     return jsonify(data)
 
 @app.route('/api/sales/summary')
+@verify_token
 def sales_summary():
     """API endpoint to get the total sales summary. Currently not used by frontend for main summary."""
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
+    # fetch_summary already calls fetch_table internally with no limit, so pagination will apply
     total_sales = fetch_summary("sales", "revenue", start_date=start_date, end_date=end_date) 
     return jsonify({"total_sales": total_sales})
 
 @app.route('/api/sales/top')
+@cross_origin() # Explicitly allow CORS for this route
+@verify_token
 def sales_top():
     """API endpoint to get the top products by sales, with optional date filtering."""
     start_date = request.args.get('start_date')
@@ -262,18 +321,22 @@ def sales_top():
     return jsonify(top_products)
 
 @app.route('/api/tiktok/reach_summary')
+@verify_token
 def tiktok_reach_summary():
     """API endpoint to get the total reach (views) for TikTok data. Currently not used by frontend for main summary."""
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
+    # fetch_summary already calls fetch_table internally with no limit, so pagination will apply
     total_views = fetch_summary("tiktokdata", "views", start_date=start_date, end_date=end_date)
     return jsonify({"total_tiktok_reach": total_views})
 
 @app.route('/api/tiktok/engagement_summary')
+@verify_token
 def tiktok_engagement_summary():
     """API endpoint to get the total engagement (likes + comments + shares) for TikTok data. Currently not used by frontend for main summary."""
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
+    # fetch_summary already calls fetch_table internally with no limit, so pagination will apply
     total_likes = fetch_summary("tiktokdata", "likes", start_date=start_date, end_date=end_date)
     total_comments = fetch_summary("tiktokdata", "comments", start_date=start_date, end_date=end_date)
     total_shares = fetch_summary("tiktokdata", "shares", start_date=start_date, end_date=end_date)
@@ -656,7 +719,7 @@ def performance_data():
                 date_format = '%Y-%m-%d'
             elif delta <= timedelta(days=90): # 31 to 90 days, show weekly
                 freq = 'W'
-                date_format = '%Y-%m-%d' # Keep full date for weekly points, frontend can format to 'Week X,紝-MM-DD'
+                date_format = '%Y-%m-%d' # Keep full date for weekly points, frontend can format to 'Week X, YY-MM-DD'
             else: # More than 90 days, show monthly
                 freq = 'MS'
                 date_format = '%Y-%m' # Format to Year-Month for monthly aggregation
@@ -664,15 +727,21 @@ def performance_data():
         logging.info(f"Calculated frequency for performance data: {freq} with date format: {date_format}")
 
         # Fetch data based on filters
+        # IMPORTANT: fetch_table now handles pagination internally when limit is None
         tiktok_records = fetch_table("tiktokdata", select="date,views,likes,comments,shares",
-                                     start_date=start_date_str, end_date=end_date_str)
+                                     start_date=start_date_str, end_date=end_date_str, limit=None)
         facebook_records = fetch_table("facebookdata", select="date,likes,comments,shares,reach",
-                                       start_date=start_date_str, end_date=end_date_str)
+                                       start_date=start_date_str, end_date=end_date_str, limit=None)
+        sales_records = fetch_table("sales", select="date,revenue",
+                                    start_date=start_date_str, end_date=end_date_str, limit=None)
+
 
         df_tiktok = pd.DataFrame(tiktok_records)
         df_facebook = pd.DataFrame(facebook_records)
+        df_sales = pd.DataFrame(sales_records)
 
-        # Process social media data
+
+        # Process social media data for Engagement and Reach charts
         combined_social_df = pd.DataFrame()
         
         if not df_tiktok.empty:
@@ -719,11 +788,37 @@ def performance_data():
         else:
             aggregated_social_data = pd.DataFrame(columns=['date', 'engagement_total', 'reach_total', 'engagement'])
 
-        # Format for frontend - select all necessary columns
-        performance_data = aggregated_social_data[['date', 'engagement', 'engagement_total', 'reach_total']].to_dict(orient='records')
-        performance_data.sort(key=lambda x: x['date']) # Ensure sorted by date
+        # Process Sales data for charting
+        aggregated_sales_data_for_charts = pd.DataFrame(columns=['date', 'sales_total'])
+        total_sales = 0 # Initialize total_sales here
+        if not df_sales.empty:
+            df_sales['date'] = pd.to_datetime(df_sales['date'], errors='coerce')
+            df_sales = df_sales.dropna(subset=['date'])
+            df_sales['revenue'] = pd.to_numeric(df_sales['revenue'], errors='coerce').fillna(0)
+            df_sales.set_index('date', inplace=True)
+            
+            # Aggregate sales data by the determined frequency
+            aggregated_sales_data_for_charts = df_sales.resample(freq).agg({
+                'revenue': 'sum'
+            }).reset_index()
+            aggregated_sales_data_for_charts.rename(columns={'revenue': 'sales_total'}, inplace=True)
+            
+            # Format date column for sales charts
+            aggregated_sales_data_for_charts['date'] = aggregated_sales_data_for_charts['date'].dt.strftime(date_format)
+            aggregated_sales_data_for_charts.sort_values(by='date', inplace=True)
 
-        return jsonify(performance_data)
+            # Calculate total sales from the aggregated data (or directly from df_sales)
+            total_sales = df_sales['revenue'].sum() # Sum all revenue for the total summary
+        
+        # Format for frontend - select all necessary columns for social media performance
+        performance_charts_data = aggregated_social_data[['date', 'engagement', 'engagement_total', 'reach_total']].to_dict(orient='records')
+        performance_charts_data.sort(key=lambda x: x['date']) # Ensure sorted by date
+
+        return jsonify({
+            "performance_charts_data": performance_charts_data, # Social media charts data
+            "sales_charts_data": aggregated_sales_data_for_charts.to_dict(orient='records'), # Aggregated sales data for charts
+            "total_sales_summary": total_sales # Include total sales summary here
+        })
 
     except Exception as e:
         logging.error(f"Server error during performance data retrieval: {e}", exc_info=True)
@@ -866,7 +961,7 @@ def generate_recommendation(historical_series, forecast_results, metric_name):
         if change_percent > 5:
             recommendation += " This indicates a strong positive growth. Consider investing more in strategies that have driven this success."
         elif change_percent < -5:
-            recommendation += " This suggests a potential decline . It's crucial to analyze recent activities and re-evaluate your strategy to mitigate this trend."
+            recommendation += " This suggests a potential decline. It's crucial to analyze recent activities and re-evaluate your strategy to mitigate this trend."
         else:
             recommendation += " This indicates a stable trend. Continue optimizing current efforts and explore new avenues for growth."
         
@@ -891,7 +986,8 @@ def predictive_analytics():
     try:
         if metric_type == 'sales':
             metric_name = "Sales Revenue"
-            sales_records = fetch_table("sales", select="date,revenue", order="date.asc")
+            # Ensure limit=None is passed so fetch_table paginates to get all data
+            sales_records = fetch_table("sales", select="date,revenue", order="date.asc", limit=None)
             df = pd.DataFrame(sales_records)
             # Check if 'date' column exists before processing
             if 'date' not in df.columns:
@@ -905,8 +1001,9 @@ def predictive_analytics():
         elif metric_type == 'engagement' or metric_type == 'reach':
             metric_name = "Engagement" if metric_type == 'engagement' else "Reach"
             
-            tiktok_records = fetch_table("tiktokdata", select="date,views,likes,comments,shares", order="date.asc")
-            facebook_records = fetch_table("facebookdata", select="date,likes,comments,shares,reach", order="date.asc")
+            # Ensure limit=None is passed so fetch_table paginates to get all data
+            tiktok_records = fetch_table("tiktokdata", select="date,views,likes,comments,shares", order="date.asc", limit=None)
+            facebook_records = fetch_table("facebookdata", select="date,likes,comments,shares,reach", order="date.asc", limit=None)
             
             combined_data = []
             
@@ -1052,9 +1149,10 @@ def correlation_analysis():
     platform_filter = request.args.get('platform', 'all') # Get platform filter
 
     # Fetch data from all relevant tables
-    tiktok_records = fetch_table("tiktokdata", select="date,views,likes,comments,shares", start_date=start_date_str, end_date=end_date_str)
-    facebook_records = fetch_table("facebookdata", select="date,likes,comments,shares,reach", start_date=start_date_str, end_date=end_date_str)
-    sales_records = fetch_table("sales", select="date,revenue", start_date=start_date_str, end_date=end_date_str)
+    # IMPORTANT: fetch_table now handles pagination internally when limit is None
+    tiktok_records = fetch_table("tiktokdata", select="date,views,likes,comments,shares", start_date=start_date_str, end_date=end_date_str, limit=None)
+    facebook_records = fetch_table("facebookdata", select="date,likes,comments,shares,reach", start_date=start_date_str, end_date=end_date_str, limit=None)
+    sales_records = fetch_table("sales", select="date,revenue", start_date=start_date_str, end_date=end_date_str, limit=None)
 
     # Prepare dataframes
     df_tiktok = pd.DataFrame(tiktok_records)
@@ -1289,10 +1387,6 @@ def get_activity_logs():
             filters=filters
         )
         
-        # Ensure 'timestamp' filter applies to the correct column.
-        # The fetch_table helper uses 'timestamp' for filtering when provided as start/end date.
-        # For general filters, it uses the key directly.
-
         return jsonify({
             "logs": logs,
             "total_count": total_count,
