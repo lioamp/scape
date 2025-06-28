@@ -4,40 +4,179 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>User Management</title>
+        <!-- Bootstrap CSS -->
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <!-- Custom Stylesheet -->
         <link rel="stylesheet" href="/style/style.css" />
+        <!-- Font Awesome for Icons -->
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
+        <!-- Removed inline style block -->
     </head>
 
-    <body>
-        <div class="d-flex vh-100">
-            <!-- Sidebar -->
-            <div id="sidebar-container"></div>
-            <!-- Main content -->
-            <main class="flex-grow-1 p-3" style="background-color: #fefef6;">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h4>User Management</h4>
-                </div>
-
-                <table class="table table-bordered" id="users-table">
-                    <thead>
-                        <tr>
-                            <th>Email</th>
-                            <th>Display Name</th>
-                            <th>Role</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-
-                <div class="text-end mt-3">
-                    <button class="btn btn-primary btn-sm" onclick="openCreateUserModal()">Add User</button>
-                </div>
-            </main>
+    <body class="d-flex vh-100">
+        <!-- Sidebar Container -->
+        <div id="sidebar-container">
+            <!-- Sidebar content will be loaded here by loadSidebar.js -->
         </div>
 
+        <!-- Main content -->
+        <main class="flex-grow-1 p-4 d-flex flex-column gap-3 container-fluid" style="background-color: #fefef6;">
+            <!-- Page Title - Consistent with other pages -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 id="page-title" class="fw-semibold text-muted mb-0">User Management</h5>
+            </div>
+
+            <!-- User List Card -->
+            <div class="card shadow-sm rounded-4 border-0 flex-grow-1">
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title text-primary mb-3">All Users</h5>
+                    <div class="table-responsive users-table-wrapper flex-grow-1">
+                        <table class="table table-hover table-striped" id="users-table">
+                            <thead>
+                                <tr>
+                                    <th>Email</th>
+                                    <th>Display Name</th>
+                                    <th>Role</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody">
+                                <!-- User rows will be loaded here by JavaScript -->
+                                <tr><td colspan="4" class="text-center text-muted">Loading users...</td></tr>
+                            </tbody>
+                        </table>
+                        <!-- Loading Overlay -->
+                        <div id="usersLoadingOverlay" class="chart-loading-overlay d-none">
+                            <div class="spinner"></div>
+                            <p class="text-primary mt-3">Loading users...</p>
+                        </div>
+                        <div id="noUsersMessage" class="text-center text-muted p-4 d-none">
+                            No users found.
+                        </div>
+                    </div>
+                    <div class="text-end mt-3">
+                        <button class="btn dashboard-btn-gradient" onclick="openCreateUserModal()">Add User</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Create User Modal -->
+        <div class="modal fade" id="createUserModal" tabindex="-1" aria-labelledby="createUserModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="createUserModalLabel">Add New User</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="createUserForm">
+                            <div class="mb-3">
+                                <label for="createEmail" class="form-label fw-semibold">Email address</label>
+                                <input type="email" class="form-control" id="createEmail" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="createPassword" class="form-label fw-semibold">Password</label>
+                                <input type="password" class="form-control" id="createPassword" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="createDisplayName" class="form-label fw-semibold">Display Name</label>
+                                <input type="text" class="form-control" id="createDisplayName">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Roles</label>
+                                <div class="role-checkbox-group">
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" id="createRoleAdmin" value="Admin">
+                                        <label class="form-check-label" for="createRoleAdmin">Admin</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" id="createRoleMarketing" value="Marketing Team">
+                                        <label class="form-check-label" for="createRoleMarketing">Marketing Team</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" id="createRoleSocialMedia" value="Social Media Manager">
+                                        <label class="form-check-label" for="createRoleSocialMedia">Social Media Manager</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn dashboard-btn-gradient">Create User</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Edit User Modal -->
+        <div class="modal fade" id="editUserModal" tabindex="-1" aria-labelledby="editUserModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="editUserModalLabel">Edit User</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="editUserForm">
+                            <input type="hidden" id="editUid">
+                            <div class="mb-3">
+                                <label for="editEmail" class="form-label fw-semibold">Email address</label>
+                                <input type="email" class="form-control" id="editEmail" readonly>
+                            </div>
+                            <div class="mb-3">
+                                <label for="editDisplayName" class="form-label fw-semibold">Display Name</label>
+                                <input type="text" class="form-control" id="editDisplayName">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Roles</label>
+                                <div class="role-checkbox-group">
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" id="editRoleAdmin" value="Admin">
+                                        <label class="form-check-label" for="editRoleAdmin">Admin</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" id="editRoleMarketing" value="Marketing Team">
+                                        <label class="form-check-label" for="editRoleMarketing">Marketing Team</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" id="editRoleSocialMedia" value="Social Media Manager">
+                                        <label class="form-check-label" for="editRoleSocialMedia">Social Media Manager</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn dashboard-btn-gradient">Save Changes</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Custom Alert Modal HTML (re-used across pages) -->
+        <div class="modal fade" id="customAlertModal" tabindex="-1" aria-labelledby="customAlertModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="customAlertModalLabel">Notification</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body" id="customAlertModalBody">
+                        <!-- Message will be inserted here -->
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bootstrap Bundle with Popper -->
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <!-- Project Specific JavaScript files -->
         <script src="/js/loadSidebar.js" type="module"></script>
         <script src="/js/auth.js" type="module"></script>
         <script type="module" src="/js/user-management.js"></script>
