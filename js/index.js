@@ -26,7 +26,8 @@ loginForm.addEventListener("submit", (e) => {
 
   signInWithEmailAndPassword(auth, email, password)
     .then(() => {
-      window.location.href = "dashboard.html";
+      // Updated the redirect URL to the new folder-based path
+      window.location.href = "/dashboard/"; 
     })
     .catch((error) => {
       errorMessage.textContent = error.message;
