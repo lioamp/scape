@@ -1,15 +1,16 @@
 // performance-evaluation.js
 
+// Import the logActivity function
+import { logActivity } from "/js/auth.js"; 
+
 // Chart instances to prevent recreation issues
 let engagementChartInstance = null;
 let reachChartInstance = null;
-// conversionChartInstance removed
 
 // Global state for KPI Goals, set by the form
 window.kpiGoals = {
     reach: 0,
     engagement: 0,
-    // conversion removed
 };
 
 // Helper function to show a custom alert modal
@@ -186,7 +187,9 @@ function renderChart(chartId, chartInstance, historicalData, label, unit = '', c
                         }
                         return label;
                     }
-                }
+                },
+                mode: 'index', // Show tooltip for all datasets at that index
+                intersect: false, // Don't require intersection with data point
             },
             legend: {
                 display: true,
@@ -486,6 +489,24 @@ async function showVisualization(metricType, allPerformanceData) {
 
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Log the page view when the DOM is loaded and the token is available
+    window.addEventListener('tokenAvailable', () => {
+        logActivity("PAGE_VIEW", "Viewed Performance Evaluation page."); 
+        console.log("Token available. Initializing performance evaluation page.");
+        // We will NOT call fetchPerformanceData or showVisualization here.
+        // It will only be triggered by the form submission.
+    }, { once: true });
+
+    // Also, check if the token is already available on direct page load
+    if (window.currentUserToken) {
+        logActivity("PAGE_VIEW", "Viewed Performance Evaluation page."); 
+        console.log("Authentication token already found. Initializing performance evaluation page immediately.");
+        // We will NOT call fetchPerformanceData or showVisualization here.
+        // It will only be triggered by the form submission.
+    } else {
+        console.log("Waiting for authentication token for performance evaluation page...");
+    }
+
     const dateRangeSelect = document.getElementById('dateRangeSelect');
     const customDateRangeDiv = document.getElementById('customDateRange');
     const performanceFilterForm = document.getElementById('performanceFilterForm');
@@ -515,7 +536,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('endDate').value = formatDate(endDate);
     }
 
-    setDefaultCustomDates('3months');
+    setDefaultCustomDates('3months'); // Still set default dates in the form fields
 
     if (dateRangeSelect.value !== 'custom') {
         customDateRangeDiv.classList.add('d-none');
@@ -583,16 +604,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log("All performance charts displayed.");
                 // Hide the filter panel after applying filters
                 filterPanel.classList.remove('filter-panel-open');
+                logActivity("PERFORMANCE_FILTER_APPLIED", `Applied filters: ${selectedDateRange}, Platform: ${platformFilter}`); // Log filter application
             }).catch(error => {
                 console.error("Error displaying charts:", error);
                 showCustomAlert("An error occurred while displaying charts.", "Chart Error");
                 // If there's an error, hide visualizations 
                 visualizationContainer.style.display = 'none';
+                logActivity("PERFORMANCE_CHART_ERROR", `Error displaying charts: ${error.message}`); // Log chart display error
             });
         } else {
             showCustomAlert("Could not retrieve performance data. Please check your connection or data.", "Data Error");
             // If no data, hide visualizations
             visualizationContainer.style.display = 'none'; 
+            logActivity("PERFORMANCE_DATA_ERROR", `Could not retrieve performance data: No data or connection error.`); // Log data retrieval error
         }
     });
 

@@ -1,5 +1,8 @@
 // predictive-analytics.js
 
+// Import the logActivity function
+import { logActivity } from "/js/auth.js"; 
+
 // Chart instances to prevent recreation issues
 let engagementChartInstance = null;
 let reachChartInstance = null;
@@ -140,13 +143,11 @@ async function fetchPredictiveData(metricType, forecastMonths) {
     } catch (error) {
         console.error('Error fetching predictive data:', error);
         showCustomAlert(`Error loading predictive data for ${metricType}: ${error.message}`, "Data Load Error");
+        logActivity("PREDICTIVE_DATA_LOAD_ERROR", `Failed to load predictive data for ${metricType}: ${error.message}`); // Log error
         return null;
     } finally {
         // This finally block will run after try/catch, hiding the overlay.
-        // If data was from cache, it's already hidden. If from API, it hides now.
-        // The overlay might already be hidden if data was served from cache.
-        // This ensures it's always hidden upon completion of fetchPredictiveData.
-        // showChartLoadingOverlay(metricType, false); // Removed from here to be managed by showVisualization
+        showChartLoadingOverlay(metricType, false); 
     }
 }
 
@@ -409,6 +410,7 @@ async function initializeAllChartsOnLoad() {
         console.log("All predictive charts initialization attempts complete.");
     } catch (error) {
         console.error("An unexpected error occurred during the initialization of all predictive charts:", error);
+        logActivity("PREDICTIVE_INIT_ERROR", `Error during chart initialization: ${error.message}`); // Log error
     }
 }
 
@@ -419,6 +421,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (window.currentUserToken) {
             clearInterval(checkTokenInterval);
             console.log("Authentication token found. Initializing all predictive visualizations.");
+            logActivity("PAGE_VIEW", "Viewed Predictive Analytics page."); // Log page view
             initializeAllChartsOnLoad(); // Start loading all charts
         } else {
             console.log("Waiting for authentication token for initial predictive charts load...");

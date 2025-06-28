@@ -90,60 +90,75 @@ def verify_token(f):
     return decorated_function
 
 # Helper to fetch data from Supabase
-def fetch_table(table_name, select="*", order=None, limit=None, start_date=None, end_date=None):
+def fetch_table(table_name, select="*", order=None, limit=None, start_date=None, end_date=None, offset=0, count=False, filters=None):
     """
-    Fetches data from a specified Supabase table, implementing pagination.
+    Fetches data from a specified Supabase table with optional filters and pagination.
+    
+    Args:
+        table_name (str): The name of the table to fetch from.
+        select (str): Columns to select (e.g., "*", "id,name").
+        order (str): Column to order by (e.g., "date.asc").
+        limit (int): Maximum number of records to return.
+        start_date (str): Start date for filtering (YYYY-MM-DD).
+        end_date (str): End date for filtering (YYYY-MM-DD).
+        offset (int): Starting offset for pagination.
+        count (bool): If True, also return the total count of matching rows.
+        filters (dict): Dictionary of additional filters (e.g., {"user_id": "some_uid"}).
+
+    Returns:
+        tuple or list: (records, total_count) if count=True, else just records.
     """
     base_url = f"{SUPABASE_URL}/rest/v1/{table_name}"
-    all_records = []
-    offset = 0
-    page_size = 1000
+    
+    query_params = []
+    query_params.append(f"select={urllib.parse.quote(select)}")
 
-    while True:
-        query_parts = []
-        query_parts.append(f"select={urllib.parse.quote(select)}")
+    if order:
+        query_params.append(f"order={urllib.parse.quote(order)}")
+    
+    if start_date:
+        query_params.append(f"timestamp=gte.{urllib.parse.quote(str(start_date))}") # Use timestamp for activity logs
+    if end_date:
+        query_params.append(f"timestamp=lte.{urllib.parse.quote(str(end_date))}") # Use timestamp for activity logs
+    
+    if filters:
+        for key, value in filters.items():
+            if value: # Only add filter if value is not empty
+                query_params.append(f"{key}=eq.{urllib.parse.quote(str(value))}")
 
-        if order:
-            query_parts.append(f"order={urllib.parse.quote(order)}")
+    if limit is not None:
+        query_params.append(f"limit={limit}")
+    query_params.append(f"offset={offset}")
+
+    full_url = f"{base_url}?{'&'.join(query_params)}"
+
+    current_headers = HEADERS.copy()
+    if count:
+        current_headers["Prefer"] = "count=exact"
+    
+    logging.info(f"Attempting to fetch from URL: {full_url}")
+
+    response = requests.get(full_url, headers=current_headers)
+    
+    logging.info(f"Response status from Supabase for {table_name}: {response.status_code}")
+
+    if response.status_code == 200:
+        records = response.json()
+        total_count = 0
+        if count:
+            try:
+                total_count = int(response.headers.get("Content-Range", "0-*/*").split('/')[-1])
+            except ValueError:
+                total_count = len(records) # Fallback if header is not as expected
         
-        if start_date:
-            query_parts.append(f"date=gte.{urllib.parse.quote(str(start_date))}")
-        if end_date:
-            query_parts.append(f"date=lte.{urllib.parse.quote(str(end_date))}")
-        
-        query_parts.append(f"offset={offset}")
-        query_parts.append(f"limit={page_size}")
-
-        full_url = f"{base_url}?{'&'.join(query_parts)}"
-
-        current_headers = HEADERS.copy()
-        
-        logging.info(f"Attempting to fetch from URL (page {offset // page_size + 1}): {full_url}")
-
-        response = requests.get(full_url, headers=current_headers)
-        
-        logging.info(f"Response status from Supabase for {table_name} (page {offset // page_size + 1}): {response.status_code}")
-
-        if response.status_code == 200:
-            records_page = response.json()
-            if not records_page:
-                break
-
-            all_records.extend(records_page)
-            
-            if limit is not None and len(all_records) >= limit:
-                all_records = all_records[:limit]
-                break
-
-            if len(records_page) < page_size:
-                break
-            
-            offset += page_size
-        else:
-            logging.error(f"Error fetching table {table_name}: {response.status_code} - {response.text}")
-            break
-
-    return all_records
+        if count:
+            return records, total_count
+        return records
+    else:
+        logging.error(f"Error fetching table {table_name}: {response.status_code} - {response.text}")
+        if count:
+            return [], 0
+        return []
 
 def fetch_summary(table_name, field, start_date=None, end_date=None):
     """
@@ -430,8 +445,7 @@ def upload_data():
         if app_name.lower() == "facebook":
             table_name = "facebookdata"
             required_columns = {'date', 'likes', 'comments', 'shares', 'reach'}
-
-            # Log the DataFrame head before any specific processing for Facebook
+            
             logging.info(f"Facebook: DataFrame head before specific processing: {df.head().to_dict(orient='records')}")
 
             if not required_columns.issubset(df.columns):
@@ -454,7 +468,6 @@ def upload_data():
             
             for col in ['likes', 'comments', 'shares', 'reach']:
                 if col in df.columns:
-                    # Log column type and first few non-numeric values if found
                     if not pd.api.types.is_numeric_dtype(df[col]):
                         non_numeric = df[pd.to_numeric(df[col], errors='coerce').isna()][col].head(5).tolist()
                         if non_numeric:
@@ -474,7 +487,6 @@ def upload_data():
             table_name = "tiktokdata"
             required_columns = {'date', 'views', 'likes', 'comments', 'shares'}
             
-            # Log the DataFrame head before any specific processing for TikTok
             logging.info(f"TikTok: DataFrame head before specific processing: {df.head().to_dict(orient='records')}")
 
             if not required_columns.issubset(df.columns):
@@ -483,7 +495,6 @@ def upload_data():
 
             for col in ['views', 'likes', 'comments', 'shares']:
                 if col in df.columns:
-                    # Log column type and first few non-numeric values if found
                     if not pd.api.types.is_numeric_dtype(df[col]):
                         non_numeric = df[pd.to_numeric(df[col], errors='coerce').isna()][col].head(5).tolist()
                         if non_numeric:
@@ -645,7 +656,7 @@ def performance_data():
                 date_format = '%Y-%m-%d'
             elif delta <= timedelta(days=90): # 31 to 90 days, show weekly
                 freq = 'W'
-                date_format = '%Y-%m-%d' # Keep full date for weekly points, frontend can format to 'Week X, YYYY-MM-DD'
+                date_format = '%Y-%m-%d' # Keep full date for weekly points, frontend can format to 'Week X,紝-MM-DD'
             else: # More than 90 days, show monthly
                 freq = 'MS'
                 date_format = '%Y-%m' # Format to Year-Month for monthly aggregation
@@ -1197,6 +1208,101 @@ def correlation_analysis():
         "recommendations": recommendations,
         "chart_data": chart_data # Include the data for plotting
     })
+
+# --- NEW ACTIVITY LOGGING ENDPOINT ---
+@app.route('/api/log_activity', methods=['POST'])
+@verify_token
+def log_activity():
+    """
+    API endpoint to log user activities in the Supabase 'activity_logs' table.
+    Expects JSON data with 'action' and 'details' fields.
+    """
+    data = request.json
+    action = data.get('action')
+    details = data.get('details')
+    
+    if not action:
+        return jsonify({"error": "Activity 'action' is required."}), 400
+
+    # Get user ID from the verified token
+    user_id = request.current_user.get('uid')
+    if not user_id:
+        logging.warning("Attempted to log activity without a valid user ID from token.")
+        # We could still log it as an anonymous action or return an error.
+        # For now, we'll return an error if user_id is missing from a verified token context.
+        return jsonify({"error": "User ID not found in token for activity logging."}), 401
+
+    try:
+        log_entry = {
+            "id": str(uuid.uuid4()), # Generate a unique ID for the log entry
+            "user_id": user_id,
+            "action": action,
+            "details": details,
+            "timestamp": datetime.utcnow().isoformat() + "Z" # ISO 8601 format with 'Z' for UTC
+        }
+
+        url = f"{SUPABASE_URL}/rest/v1/activity_logs"
+        response = requests.post(url, headers=HEADERS.copy(), json=[log_entry])
+
+        if response.status_code in [200, 201]:
+            logging.info(f"Activity logged successfully for user {user_id}: {action}")
+            return jsonify({"message": "Activity logged successfully."}), 201
+        else:
+            logging.error(f"Failed to log activity for user {user_id}. Status: {response.status_code}, Response: {response.text}")
+            return jsonify({"error": "Failed to log activity.", "details": response.text}), response.status_code
+    except Exception as e:
+        logging.error(f"Server error while logging activity: {e}", exc_info=True)
+        return jsonify({"error": f"An error occurred while logging activity: {str(e)}"}), 500
+
+# NEW API ENDPOINT FOR ACTIVITY LOGS (ADMIN ONLY)
+@app.route('/api/activity_logs', methods=['GET'])
+@verify_token
+@admin_required
+def get_activity_logs():
+    """
+    API endpoint to fetch activity logs with pagination and filtering for admins.
+    Filters: start_date (YYYY-MM-DD), end_date (YYYY-MM-DD), user_id (Firebase UID).
+    Pagination: page (1-indexed), limit (items per page).
+    """
+    page = int(request.args.get('page', 1))
+    limit = int(request.args.get('limit', 10))
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    user_id = request.args.get('user_id')
+
+    offset = (page - 1) * limit
+
+    filters = {}
+    if user_id:
+        filters['user_id'] = user_id
+
+    try:
+        logs, total_count = fetch_table(
+            "activity_logs", 
+            select="id,user_id,action,details,timestamp", 
+            order="timestamp.desc", # Order by latest first
+            limit=limit, 
+            offset=offset, 
+            count=True,
+            start_date=start_date,
+            end_date=end_date,
+            filters=filters
+        )
+        
+        # Ensure 'timestamp' filter applies to the correct column.
+        # The fetch_table helper uses 'timestamp' for filtering when provided as start/end date.
+        # For general filters, it uses the key directly.
+
+        return jsonify({
+            "logs": logs,
+            "total_count": total_count,
+            "page": page,
+            "limit": limit
+        }), 200
+    except Exception as e:
+        logging.error(f"Error fetching activity logs: {e}", exc_info=True)
+        return jsonify({"error": f"Failed to retrieve activity logs: {str(e)}"}), 500
+
 
 if __name__ == "__main__":
     app.run(debug=True, host='127.0.0.1', port=5000)

@@ -1,6 +1,8 @@
 // Assume auth.js handles Firebase initialization and auth state
 // window.currentUserTokenPromise is expected to be set by auth.js
 
+import { logActivity } from "/js/auth.js"; // Import the logActivity function
+
 let correlationData = {}; // Global variable to store fetched correlation results
 let charts = {}; // Object to store Chart.js instances
 let customAlertModalInstance = null; // Global instance for the custom alert modal
@@ -94,24 +96,26 @@ function createCorrelationChart(chartId, title, xLabel, yLabel, data, correlatio
                         }
                     }
                 },
-                annotation: {
-                    annotations: {
-                        line1: {
-                            type: 'line',
-                            mode: 'horizontal',
-                            scaleID: 'y',
-                            value: data.reduce((sum, d) => sum + d.y, 0) / data.length, // Avg Y value
-                            borderColor: 'rgb(255, 99, 132)',
-                            borderWidth: 1,
-                            borderDash: [5, 5],
-                            label: {
-                                enabled: true,
-                                content: 'Avg ' + yLabel,
-                                position: 'end'
-                            }
-                        }
-                    }
-                }
+                // Annotation plugin might not be loaded or configured for this project.
+                // Removing it to avoid potential errors if not fully set up.
+                // annotation: {
+                //     annotations: {
+                //         line1: {
+                //             type: 'line',
+                //             mode: 'horizontal',
+                //             scaleID: 'y',
+                //             value: data.reduce((sum, d) => sum + d.y, 0) / data.length, // Avg Y value
+                //             borderColor: 'rgb(255, 99, 132)',
+                //             borderWidth: 1,
+                //             borderDash: [5, 5],
+                //             label: {
+                //                 enabled: true,
+                //                 content: 'Avg ' + yLabel,
+                //                 position: 'end'
+                //             }
+                //         }
+                //     }
+                // }
             },
             scales: {
                 x: {
@@ -252,6 +256,7 @@ async function fetchCorrelationData(startDate = null, endDate = null, platform =
 
         if (!response.ok) {
             const error = await response.json();
+            logActivity("CORRELATION_DATA_FETCH_FAILED", `Failed to fetch correlation data. Error: ${error.message || response.statusText}`); // Log failure
             throw new Error(error.message || "Failed to fetch correlation data.");
         }
 
@@ -259,11 +264,13 @@ async function fetchCorrelationData(startDate = null, endDate = null, platform =
         console.log("Fetched correlation data:", correlationData);
         displayCorrelations(); // Display all charts immediately after fetching data
         document.getElementById('visualizationsContainer').style.display = 'flex'; // Ensure container is visible
+        logActivity("CORRELATION_DATA_FETCH_SUCCESS", `Fetched and displayed correlation data for range ${startDate} to ${endDate}, platform ${platform}.`); // Log success
 
     } catch (error) {
         console.error("Error fetching correlation data:", error);
         showCustomAlert(`Error fetching correlation data: ${error.message}`, "Data Fetch Error");
         document.getElementById('visualizationsContainer').style.display = 'none'; // Hide visualizations on error
+        // Error already logged above
     } finally {
         // Hide loading overlays regardless of success or failure
         showChartLoadingOverlay('engageReach', false);
@@ -275,30 +282,57 @@ async function fetchCorrelationData(startDate = null, endDate = null, platform =
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
+    // Log the page view when the DOM is loaded and the token is available
+    window.addEventListener('tokenAvailable', () => {
+        logActivity("PAGE_VIEW", "Viewed Correlation Analysis page."); 
+        console.log("Token available. Initializing correlation analysis data fetches.");
+        
+        const filterForm = document.getElementById('filterForm'); // Redefine if it's not global
+        const startDateInput = document.getElementById('startDate');
+        const endDateInput = document.getElementById('endDate');
+        const platformFilterInput = document.getElementById('platformFilter');
+        
+        // Set default dates for the filter to a wider range that should contain data
+        const today = new Date();
+        const defaultStartDate = '2024-05-01'; 
+        const defaultEndDate = today.toISOString().split('T')[0];
+
+        startDateInput.value = defaultStartDate;
+        endDateInput.value = defaultEndDate;
+
+        fetchCorrelationData(startDateInput.value, endDateInput.value, platformFilterInput.value);
+    }, { once: true });
+
+
+    // Also, check if the token is already available (e.g., on subsequent page loads or after a quick login)
+    if (window.currentUserToken) {
+        logActivity("PAGE_VIEW", "Viewed Correlation Analysis page."); // Log page view here
+        console.log("Authentication token already found. Initializing correlation analysis data fetches immediately.");
+        
+        const filterForm = document.getElementById('filterForm'); // Redefine if it's not global
+        const startDateInput = document.getElementById('startDate');
+        const endDateInput = document.getElementById('endDate');
+        const platformFilterInput = document.getElementById('platformFilter');
+        
+        // Set default dates for the filter to a wider range that should contain data
+        const today = new Date();
+        const defaultStartDate = '2024-05-01'; 
+        const defaultEndDate = today.toISOString().split('T')[0];
+
+        startDateInput.value = defaultStartDate;
+        endDateInput.value = defaultEndDate;
+        
+        fetchCorrelationData(startDateInput.value, endDateInput.value, platformFilterInput.value);
+    } else {
+        console.log("Waiting for authentication token for initial correlation analysis load...");
+    }
+
+
     const filterForm = document.getElementById('filterForm');
     const toggleFilterButton = document.getElementById('toggleFilterButton');
     const closeFilterPanelButton = document.getElementById('closeFilterPanelButton');
     const filterPanel = document.getElementById('filterPanel');
 
-    // Set default dates for the filter to a wider range that should contain data
-    const today = new Date();
-    const defaultStartDate = '2024-05-01'; // Changed default to a date in 2024
-    const defaultEndDate = today.toISOString().split('T')[0];
-
-    const startDateInput = document.getElementById('startDate');
-    const endDateInput = document.getElementById('endDate');
-    const platformFilterInput = document.getElementById('platformFilter');
-
-    startDateInput.value = defaultStartDate;
-    endDateInput.value = defaultEndDate;
-
-    // Automatically fetch and display correlations on page load with default filters
-    if (window.currentUserTokenPromise) {
-        fetchCorrelationData(startDateInput.value, endDateInput.value, platformFilterInput.value);
-    } else {
-        console.error("window.currentUserTokenPromise is not set. Auth might not be initialized.");
-        showCustomAlert("Authentication promise not found. Please ensure you are logged in.", "Authentication Error");
-    }
 
     // Handle filter form submission
     filterForm.addEventListener('submit', function(event) {
@@ -308,6 +342,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const platform = platformFilterInput.value;
         fetchCorrelationData(startDate, endDate, platform);
         filterPanel.classList.remove('filter-panel-open'); // Close panel after applying filters
+        logActivity("CORRELATION_FILTER_APPLIED", `Applied filters: Start: ${startDate}, End: ${endDate}, Platform: ${platform}.`); // Log filter application
     });
 
     // Toggle filter panel visibility
