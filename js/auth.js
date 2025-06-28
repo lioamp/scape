@@ -53,9 +53,9 @@ window.currentUserTokenPromise = new Promise((resolve, reject) => {
                 // Determine user role based on claims
                 if (currentUserClaims.admin === true) {
                     currentUserRole = "Admin";
-                } else if (currentUserClaims.marketingTeam === true) {
+                } else if (currentUserClaims['Marketing Team'] === true) { // Changed to bracket notation
                     currentUserRole = "Marketing Team";
-                } else if (currentUserClaims.socialMediaManager === true) {
+                } else if (currentUserClaims['Social Media Manager'] === true) { // Changed to bracket notation
                     currentUserRole = "Social Media Manager";
                 } else {
                     currentUserRole = "Other";
@@ -178,6 +178,7 @@ function updateAdminUI() {
     }
 
     if (uploadSection) {
+        // Here, currentUserRole is already set correctly based on the claims checked above.
         if (currentUserRole === "Admin" || currentUserRole === "Marketing Team") {
             uploadSection.classList.remove("d-none"); // Show the upload section
         } else {
