@@ -1,7 +1,7 @@
 // predictive-analytics.js
 
 // Import the logActivity function
-import { logActivity } from "/js/auth.js"; 
+import { logActivity } from "/js/auth.js";
 
 // Chart instances to prevent recreation issues
 let engagementChartInstance = null;
@@ -45,11 +45,15 @@ function showChartLoadingOverlay(metricType, show) {
         if (show) {
             overlay.classList.remove('d-none');
             overlay.style.display = 'flex'; // Ensure flex to center spinner
-            chartCanvas.classList.add('d-none'); // Hide canvas while loading
+            // Instead of d-none, use opacity and pointer-events to keep canvas space
+            chartCanvas.style.opacity = '0';
+            chartCanvas.style.pointerEvents = 'none';
         } else {
             overlay.classList.add('d-none');
             overlay.style.display = 'none';
-            chartCanvas.classList.remove('d-none'); // Show canvas when loading is done
+            // Restore canvas visibility and interactivity
+            chartCanvas.style.opacity = '1';
+            chartCanvas.style.pointerEvents = 'auto';
         }
     }
 }
@@ -147,7 +151,7 @@ async function fetchPredictiveData(metricType, forecastMonths) {
         return null;
     } finally {
         // This finally block will run after try/catch, hiding the overlay.
-        showChartLoadingOverlay(metricType, false); 
+        showChartLoadingOverlay(metricType, false);
     }
 }
 
@@ -386,7 +390,9 @@ async function showVisualization(metricType) {
                 salesChartInstance.destroy();
                 salesChartInstance = null;
             }
-            chartCanvas.classList.add('d-none'); // Ensure canvas is hidden if data fails
+            // Use opacity and pointer-events to hide canvas while maintaining layout space
+            chartCanvas.style.opacity = '0';
+            chartCanvas.style.pointerEvents = 'none';
         }
         if (recommendationElement) {
             recommendationElement.textContent = 'Failed to load predictive data or generate recommendation.';
