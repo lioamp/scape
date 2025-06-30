@@ -81,7 +81,8 @@ def verify_token(f):
 
         try:
             id_token = auth_header.split(' ')[1]
-            decoded_token = auth.verify_id_token(id_token)
+            # Added clock_skew_seconds to allow for minor time differences
+            decoded_token = auth.verify_id_token(id_token, clock_skew_seconds=60) 
             request.current_user = decoded_token # Attach decoded token to request for subsequent decorators
             logging.info(f"Token verified for user: {decoded_token['uid']}")
         except Exception as e:
