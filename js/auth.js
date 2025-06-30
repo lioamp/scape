@@ -31,7 +31,8 @@ try {
     app = firebase.app(); 
 }
 
-const auth = getAuth(app);
+// EXPORT THE AUTH INSTANCE SO OTHER MODULES CAN IMPORT IT
+export const auth = getAuth(app); // <-- ADD 'export' HERE
 
 // Global variable to store current user role and token
 let currentUserRole = "Other";

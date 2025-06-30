@@ -10,7 +10,11 @@
         <link rel="stylesheet" href="/style/style.css" />
         <!-- Font Awesome for Icons -->
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
-        <!-- Removed inline style block -->
+        <!-- Custom CSS for User Management Page -->
+        <style>
+            /* User ID column will now always be visible by default.
+               No specific CSS needed here to hide it. */
+        </style>
     </head>
 
     <body class="d-flex vh-100">
@@ -35,6 +39,8 @@
                             <thead>
                                 <tr>
                                     <th>Email</th>
+                                    <!-- User ID header is now always visible -->
+                                    <th id="userIdHeader" class="user-id-header">User ID</th>
                                     <th>Display Name</th>
                                     <th>Role</th>
                                     <th>Actions</th>
@@ -42,7 +48,7 @@
                             </thead>
                             <tbody id="usersTableBody">
                                 <!-- User rows will be loaded here by JavaScript -->
-                                <tr><td colspan="4" class="text-center text-muted">Loading users...</td></tr>
+                                <tr><td colspan="6" class="text-center text-muted">Loading users...</td></tr>
                             </tbody>
                         </table>
                         <!-- Loading Overlay -->
@@ -100,10 +106,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                <button type="submit" class="btn dashboard-btn-gradient">Create User</button>
-                            </div>
+                            <button type="submit" class="btn dashboard-btn-gradient">Add User</button>
                         </form>
                     </div>
                 </div>
@@ -120,10 +123,13 @@
                     </div>
                     <div class="modal-body">
                         <form id="editUserForm">
-                            <input type="hidden" id="editUid">
+                            <div class="mb-3">
+                                <label for="editUid" class="form-label fw-semibold">User ID</label>
+                                <input type="text" class="form-control" id="editUid" readonly>
+                            </div>
                             <div class="mb-3">
                                 <label for="editEmail" class="form-label fw-semibold">Email address</label>
-                                <input type="email" class="form-control" id="editEmail" readonly>
+                                <input type="email" class="form-control" id="editEmail" required>
                             </div>
                             <div class="mb-3">
                                 <label for="editDisplayName" class="form-label fw-semibold">Display Name</label>
@@ -146,10 +152,8 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                <button type="submit" class="btn dashboard-btn-gradient">Save Changes</button>
-                            </div>
+                            <button type="submit" class="btn dashboard-btn-gradient">Save Changes</button>
+                            <button type="button" class="btn btn-danger float-end" id="deleteUserButton">Delete User</button>
                         </form>
                     </div>
                 </div>
@@ -169,6 +173,23 @@
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Custom Confirm Modal HTML (re-used across pages) -->
+        <div class="modal fade" id="customConfirmModal" tabindex="-1" aria-labelledby="customConfirmModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-sm modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="customConfirmModalLabel"></h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body" id="customConfirmModalBody"></div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-danger" id="customConfirmButton">Confirm</button>
                     </div>
                 </div>
             </div>
