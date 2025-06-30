@@ -1,5 +1,5 @@
 // Import the logActivity function
-import { logActivity } from "/js/auth.js"; 
+import { logActivity } from "/js/auth.js";
 
 // Chart instances to prevent recreation issues
 let engagementChartInstance = null;
@@ -27,7 +27,7 @@ function showCustomAlert(message, title = 'Notification') {
     } else {
         console.error("Custom alert modal element not found in the DOM.");
         // Fallback to native alert if modal element is missing, though this should be avoided.
-        alert(`${title}: ${message}`); 
+        alert(`${title}: ${message}`);
     }
 }
 
@@ -39,11 +39,15 @@ function showChartLoadingOverlay(metricType, show) {
         if (show) {
             overlay.classList.remove('d-none');
             overlay.style.display = 'flex'; // Ensure flex to center spinner
-            chartCanvas.classList.add('d-none'); // Hide canvas while loading
+            // Instead of d-none, use opacity and pointer-events to keep canvas space
+            chartCanvas.style.opacity = '0';
+            chartCanvas.style.pointerEvents = 'none';
         } else {
             overlay.classList.add('d-none');
             overlay.style.display = 'none';
-            chartCanvas.classList.remove('d-none'); // Show canvas when loading is done
+            // Restore canvas visibility and interactivity
+            chartCanvas.style.opacity = '1';
+            chartCanvas.style.pointerEvents = 'auto';
         }
     }
 }
@@ -91,6 +95,10 @@ async function fetchPerformanceData(startDate, endDate, platform) {
         return performanceDataCache[cacheKey].data;
     }
 
+    // Show loading overlays for both charts before fetching data
+    showChartLoadingOverlay('engagement', true);
+    showChartLoadingOverlay('reach', true);
+
     try {
         const token = window.currentUserToken;
         console.log(`Fetching performance data. Current token:`, token ? "Available" : "NOT available");
@@ -134,6 +142,10 @@ async function fetchPerformanceData(startDate, endDate, platform) {
         console.error('Error fetching performance data:', error);
         showCustomAlert(`Error loading performance data: ${error.message}`, "Data Load Error");
         return null;
+    } finally {
+        // Hide loading overlays regardless of success or failure
+        showChartLoadingOverlay('engagement', false);
+        showChartLoadingOverlay('reach', false);
     }
 }
 
@@ -151,7 +163,7 @@ async function fetchPerformanceData(startDate, endDate, platform) {
  */
 function renderChart(chartId, chartInstance, historicalData, label, unit = '', chartType = 'line', goalValue = 0) {
     // Add a check to ensure Chart is defined
-    if (typeof Chart === 'undefined') {
+    if (typeof window.Chart === 'undefined') { // Use window.Chart
         console.error("Chart.js library is not loaded. Please ensure chart.umd.js is loaded as a module before this script.");
         return null;
     }
@@ -204,10 +216,10 @@ function renderChart(chartId, chartInstance, historicalData, label, unit = '', c
 
 
     // Bar chart for Engagement Rate
-    if (chartType === 'bar' && chartId === 'engagementChart') { 
-        const overallCurrentValue = historicalData.length > 0 ? historicalData[0].value : 0; 
-        
-        chartInstance = new Chart(ctx, {
+    if (chartType === 'bar' && chartId === 'engagementChart') {
+        const overallCurrentValue = historicalData.length > 0 ? historicalData[0].value : 0;
+
+        chartInstance = new window.Chart(ctx, { // Use window.Chart
             type: 'bar',
             data: {
                 labels: [`Current ${label}`, `Goal ${label}`],
@@ -252,7 +264,7 @@ function renderChart(chartId, chartInstance, historicalData, label, unit = '', c
         const allDates = [...new Set(historicalData.map(d => d.date))].sort((a, b) => new Date(a) - new Date(b));
         const plotData = allDates.map(date => {
             const dataPoint = historicalData.find(d => d.date === date);
-            return dataPoint ? parseFloat(dataPoint.value) : null; 
+            return dataPoint ? parseFloat(dataPoint.value) : null;
         });
 
         // Use the new getFormattedDateLabel for dynamic date formatting
@@ -274,18 +286,18 @@ function renderChart(chartId, chartInstance, historicalData, label, unit = '', c
         if (goalValue > 0) {
             datasets.push({
                 label: `Goal ${label}`,
-                data: Array(allDates.length).fill(goalValue), 
-                borderColor: 'rgb(255, 99, 132)', 
+                data: Array(allDates.length).fill(goalValue),
+                borderColor: 'rgb(255, 99, 132)',
                 backgroundColor: 'rgba(255, 99, 132, 0.2)',
                 borderWidth: 2,
-                borderDash: [5, 5], 
-                pointRadius: 0, 
+                borderDash: [5, 5],
+                pointRadius: 0,
                 fill: false,
                 tension: 0
             });
         }
 
-        chartInstance = new Chart(ctx, {
+        chartInstance = new window.Chart(ctx, { // Use window.Chart
             type: 'line',
             data: {
                 labels: formattedLabels,
@@ -346,16 +358,16 @@ async function showVisualization(metricType, allPerformanceData) {
     const recommendationElement = document.getElementById(`${metricType}Insight`);
     const chartCanvas = document.getElementById(`${metricType}Chart`);
     const chartContainer = document.getElementById(`${metricType}-chart-container`);
-    
-    let currentMetricElement; 
+
+    let currentMetricElement;
     let targetGoalDisplayElement;
 
     if (metricType === 'engagement') {
         currentMetricElement = document.getElementById('engagementRateCurrent');
-        targetGoalDisplayElement = document.getElementById('engagementRateGoal'); 
+        targetGoalDisplayElement = document.getElementById('engagementRateGoal');
     } else if (metricType === 'reach') {
         currentMetricElement = document.getElementById('reachCurrent');
-        targetGoalDisplayElement = document.getElementById('reachGoalDisplay'); 
+        targetGoalDisplayElement = document.getElementById('reachGoalDisplay');
     }
 
     console.log(`--- showVisualization called for ${metricType} ---`);
@@ -363,81 +375,68 @@ async function showVisualization(metricType, allPerformanceData) {
     console.log(`targetGoalDisplayElement (${metricType}GoalDisplay/Goal):`, targetGoalDisplayElement);
     console.log(`recommendationElement (${metricType}Insight):`, recommendationElement);
 
+    // No need to show/hide individual overlays here, fetchPerformanceData handles it.
+    // showChartLoadingOverlay(metricType, true); // Removed as it's handled by fetchPerformanceData
 
-    // Show loading overlay
-    const loadingOverlay = document.createElement('div');
-    loadingOverlay.id = `${metricType}LoadingOverlay`;
-    loadingOverlay.className = 'chart-loading-overlay';
-    loadingOverlay.innerHTML = `
-        <div class="spinner"></div>
-        <p class="text-primary mt-3">Loading ${metricType} data...</p>
-    `;
-    if (chartContainer && !document.getElementById(`${metricType}LoadingOverlay`)) {
-        chartContainer.style.position = 'relative';
-        chartContainer.appendChild(loadingOverlay);
-    }
-    showChartLoadingOverlay(metricType, true);
-
-    let historicalDataForChart = []; 
+    let historicalDataForChart = [];
     let chartLabel = '';
     let chartUnit = '';
     let currentChartInstance = null;
-    let chartType = 'line'; 
+    let chartType = 'line';
 
     let overallEngagementTotal = 0;
-    let overallReachForEngagement = 0; 
+    let overallReachForEngagement = 0;
 
     // Access performance_charts_data from the API response
     if (allPerformanceData && allPerformanceData.performance_charts_data) {
-        allPerformanceData.performance_charts_data.forEach(d => { 
-            overallEngagementTotal += (d.engagement_total || 0); 
-            overallReachForEngagement += (d.reach_total || 0);   
+        allPerformanceData.performance_charts_data.forEach(d => {
+            overallEngagementTotal += (d.engagement_total || 0);
+            overallReachForEngagement += (d.reach_total || 0);
         });
     }
 
 
     if (metricType === 'engagement') {
-        const calculatedOverallEngagementRate = (overallReachForEngagement > 0) ? 
-                                                (overallEngagementTotal / overallReachForEngagement) * 100 : 
+        const calculatedOverallEngagementRate = (overallReachForEngagement > 0) ?
+                                                (overallEngagementTotal / overallReachForEngagement) * 100 :
                                                 0;
-        
+
         historicalDataForChart = [{ date: 'Overall', value: calculatedOverallEngagementRate }];
 
         chartLabel = 'Engagement Rate';
         chartUnit = '%';
         currentChartInstance = engagementChartInstance;
-        chartType = 'bar'; 
+        chartType = 'bar';
     } else if (metricType === 'reach') {
         // Access performance_charts_data from the API response
-        historicalDataForChart = (allPerformanceData && allPerformanceData.performance_charts_data) ? 
-                                 allPerformanceData.performance_charts_data.map(d => ({ date: d.date, value: d.reach_total })) : []; 
+        historicalDataForChart = (allPerformanceData && allPerformanceData.performance_charts_data) ?
+                                 allPerformanceData.performance_charts_data.map(d => ({ date: d.date, value: d.reach_total })) : [];
         chartLabel = 'Reach';
-        chartUnit = ''; 
+        chartUnit = '';
         currentChartInstance = reachChartInstance;
-        chartType = 'line'; 
-    } 
+        chartType = 'line';
+    }
 
-    const currentValue = (metricType === 'engagement') ? historicalDataForChart[0].value : 
+    const currentValue = (metricType === 'engagement') ? historicalDataForChart[0].value :
                          (historicalDataForChart.length > 0 ? historicalDataForChart[historicalDataForChart.length - 1].value : 0);
-    
-    const inputGoalElement = document.getElementById(`${metricType}Goal`);
-    const goalValue = inputGoalElement ? parseFloat(inputGoalElement.value) || 0 : 0;
-    console.log(`Goal input value from form for ${metricType}:`, inputGoalElement?.value); 
-    console.log(`Parsed goalValue for ${metricType}:`, goalValue); 
+
+    // Use window.kpiGoals for the goal value
+    const goalValue = window.kpiGoals[metricType];
+    console.log(`Parsed goalValue for ${metricType}:`, goalValue);
 
 
     if (currentMetricElement) {
         let displayValue = currentValue;
-        if (metricType === 'engagement') { 
-            displayValue = currentValue.toFixed(2); 
+        if (metricType === 'engagement') {
+            displayValue = currentValue.toFixed(2);
         }
         currentMetricElement.textContent = displayValue.toLocaleString() + chartUnit;
     }
-    if (targetGoalDisplayElement) { 
+    if (targetGoalDisplayElement) {
         if (goalValue > 0) {
             let displayGoalValue = goalValue;
-            if (metricType === 'engagement') { 
-                displayGoalValue = goalValue.toFixed(2); 
+            if (metricType === 'engagement') {
+                displayGoalValue = goalValue.toFixed(2);
             }
             targetGoalDisplayElement.textContent = displayGoalValue.toLocaleString() + chartUnit;
         } else {
@@ -452,20 +451,20 @@ async function showVisualization(metricType, allPerformanceData) {
     const newChartInstance = renderChart(
         `${metricType}Chart`,
         currentChartInstance,
-        historicalDataForChart, 
+        historicalDataForChart,
         chartLabel,
         chartUnit,
         chartType,
-        goalValue 
+        goalValue
     );
 
     if (metricType === 'engagement') {
         engagementChartInstance = newChartInstance;
     } else if (metricType === 'reach') {
         reachChartInstance = newChartInstance;
-    } 
+    }
 
-    if (recommendationElement) { 
+    if (recommendationElement) {
         let currentTextValue = currentValue.toLocaleString();
         let goalTextValue = goalValue > 0 ? goalValue.toLocaleString() : 'N/A';
 
@@ -493,29 +492,99 @@ async function showVisualization(metricType, allPerformanceData) {
         console.warn(`Recommendation element for ${metricType} not found in the DOM.`);
     }
 
-    showChartLoadingOverlay(metricType, false);
+    // showChartLoadingOverlay(metricType, false); // Removed as it's handled by fetchPerformanceData
+}
+
+
+// Function to set default dates based on a period
+function setDefaultCustomDates(period) {
+    const today = new Date();
+    let startDate = new Date();
+    const endDate = new Date(today);
+
+    if (period === '3months') {
+        startDate.setMonth(today.getMonth() - 3);
+    } else if (period === '6months') {
+        startDate.setMonth(today.getMonth() - 6);
+    } else if (period === 'lastyear') {
+        startDate.setFullYear(today.getFullYear() - 1);
+    } else if (period === 'alltime') {
+            startDate = new Date(2020, 0, 1);
+    }
+
+    const formatDate = (date) => date.toISOString().split('T')[0];
+    document.getElementById('startDate').value = formatDate(startDate);
+    document.getElementById('endDate').value = formatDate(endDate);
+}
+
+
+// Function to initialize the dashboard with default filters and display charts
+async function initializePerformanceDashboard() {
+    console.log("Initializing performance dashboard with default values...");
+
+    const dateRangeSelect = document.getElementById('dateRangeSelect');
+    const startDateInput = document.getElementById('startDate');
+    const endDateInput = document.getElementById('endDate');
+    const reachGoalInput = document.getElementById('reachGoal');
+    const engagementGoalInput = document.getElementById('engagementGoal');
+    const platformFilterSelect = document.getElementById('platformFilter');
+    const visualizationContainer = document.getElementById('visualization-container');
+
+    // Set default filter values
+    setDefaultCustomDates('3months'); // This will set default startDate and endDate inputs
+    dateRangeSelect.value = '3months';
+    // Ensure custom date range inputs are hidden if not 'custom'
+    const customDateRangeDiv = document.getElementById('customDateRange'); // Get customDateRangeDiv
+    if (customDateRangeDiv) { // Add a check for customDateRangeDiv
+        customDateRangeDiv.classList.add('d-none');
+        customDateRangeDiv.classList.remove('d-flex');
+    }
+
+
+    reachGoalInput.value = window.kpiGoals.reach; // Set form field from global state
+    engagementGoalInput.value = parseFloat(engagementGoalInput.value) || 0; // Ensure engagementGoal is parsed
+    platformFilterSelect.value = 'all';
+
+    // Make the visualization container visible immediately
+    visualizationContainer.style.display = 'flex';
+
+    // Get the current default dates
+    const startDate = startDateInput.value;
+    const endDate = endDateInput.value;
+    const platform = platformFilterSelect.value;
+
+    console.log('Initial filters:', {
+        startDate,
+        endDate,
+        reachGoal: window.kpiGoals.reach,
+        engagementGoal: window.kpiGoals.engagement,
+        platform
+    });
+
+    const allPerformanceData = await fetchPerformanceData(startDate, endDate, platform);
+
+    if (allPerformanceData) {
+        Promise.all([
+            showVisualization('engagement', allPerformanceData),
+            showVisualization('reach', allPerformanceData),
+        ]).then(() => {
+            console.log("Initial performance charts displayed successfully.");
+            logActivity("PERFORMANCE_INITIAL_LOAD", `Dashboard loaded with default filters: 3 months, Platform: All`); // Log initial load
+        }).catch(error => {
+            console.error("Error displaying initial charts:", error);
+            showCustomAlert("An error occurred while displaying initial charts.", "Chart Error");
+            visualizationContainer.style.display = 'none'; // Hide if error
+            logActivity("PERFORMANCE_CHART_ERROR_INITIAL", `Error displaying initial charts: ${error.message}`); // Log error
+        });
+    } else {
+        showCustomAlert("Could not retrieve initial performance data. Please check your connection or data.", "Data Error");
+        visualizationContainer.style.display = 'none'; // Hide if no data
+        logActivity("PERFORMANCE_DATA_ERROR_INITIAL", `Could not retrieve initial performance data: No data or connection error.`); // Log error
+    }
 }
 
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Log the page view when the DOM is loaded and the token is available
-    window.addEventListener('tokenAvailable', () => {
-        logActivity("PAGE_VIEW", "Viewed Performance Evaluation page."); 
-        console.log("Token available. Initializing performance evaluation page.");
-        // We will NOT call fetchPerformanceData or showVisualization here.
-        // It will only be triggered by the form submission.
-    }, { once: true });
-
-    // Also, check if the token is already available on direct page load
-    if (window.currentUserToken) {
-        logActivity("PAGE_VIEW", "Viewed Performance Evaluation page."); 
-        console.log("Authentication token already found. Initializing performance evaluation page immediately.");
-        // We will NOT call fetchPerformanceData or showVisualization here.
-        // It will only be triggered by the form submission.
-    } else {
-        console.log("Waiting for authentication token for performance evaluation page...");
-    }
-
     const dateRangeSelect = document.getElementById('dateRangeSelect');
     const customDateRangeDiv = document.getElementById('customDateRange');
     const performanceFilterForm = document.getElementById('performanceFilterForm');
@@ -524,28 +593,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const toggleFilterButton = document.getElementById('toggleFilterButton'); // Get the toggle button
     const closeFilterPanelButton = document.getElementById('closeFilterPanelButton'); // Get the close button
 
+    // The setDefaultCustomDates function is now defined outside this block.
 
-    function setDefaultCustomDates(period) {
-        const today = new Date();
-        let startDate = new Date();
-        const endDate = new Date(today); 
-
-        if (period === '3months') {
-            startDate.setMonth(today.getMonth() - 3);
-        } else if (period === '6months') {
-            startDate.setMonth(today.getMonth() - 6);
-        } else if (period === 'lastyear') {
-            startDate.setFullYear(today.getFullYear() - 1);
-        } else if (period === 'alltime') {
-                startDate = new Date(2020, 0, 1); 
-        }
-
-        const formatDate = (date) => date.toISOString().split('T')[0];
-        document.getElementById('startDate').value = formatDate(startDate);
-        document.getElementById('endDate').value = formatDate(endDate);
-    }
-
-    setDefaultCustomDates('3months'); // Still set default dates in the form fields
+    // Still set default dates in the form fields when DOM is ready
+    setDefaultCustomDates('3months');
 
     if (dateRangeSelect.value !== 'custom') {
         customDateRangeDiv.classList.add('d-none');
@@ -554,29 +605,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
     dateRangeSelect.addEventListener('change', function() {
         if (this.value === 'custom') {
-            customDateRangeDiv.classList.remove('d-none'); 
-            customDateRangeDiv.classList.add('d-flex');    
+            customDateRangeDiv.classList.remove('d-none');
+            customDateRangeDiv.classList.add('d-flex');
         } else {
-            customDateRangeDiv.classList.add('d-none');    
-            customDateRangeDiv.classList.remove('d-flex'); 
-            setDefaultCustomDates(this.value);              
+            customDateRangeDiv.classList.add('d-none');
+            customDateRangeDiv.classList.remove('d-flex');
+            setDefaultCustomDates(this.value);
         }
     });
 
     performanceFilterForm.addEventListener('submit', async function(event) {
-        event.preventDefault(); 
+        event.preventDefault();
 
         const selectedDateRange = dateRangeSelect.value;
         let startDate = document.getElementById('startDate').value;
         let endDate = document.getElementById('endDate').value;
-        
+
+        // Update global KPI goals from form on submission
         window.kpiGoals.reach = parseFloat(document.getElementById('reachGoal').value) || 0;
         window.kpiGoals.engagement = parseFloat(document.getElementById('engagementGoal').value) || 0;
         const platformFilter = document.getElementById('platformFilter').value;
 
         if (selectedDateRange !== 'custom') {
             const today = new Date();
-            endDate = today.toISOString().split('T')[0]; 
+            endDate = today.toISOString().split('T')[0];
 
             let calculatedStartDate = new Date();
             if (selectedDateRange === '3months') {
@@ -586,7 +638,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (selectedDateRange === 'lastyear') {
                 calculatedStartDate.setFullYear(today.getFullYear() - 1);
             } else if (selectedDateRange === 'alltime') {
-                calculatedStartDate = new Date(2020, 0, 1); 
+                calculatedStartDate = new Date(2020, 0, 1);
             }
             startDate = calculatedStartDate.toISOString().split('T')[0];
         }
@@ -601,14 +653,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // Ensure visualization container is visible when filters are applied
-        visualizationContainer.style.display = 'flex'; 
+        visualizationContainer.style.display = 'flex';
 
         const allPerformanceData = await fetchPerformanceData(startDate, endDate, platformFilter);
 
         if (allPerformanceData) {
             Promise.all([
                 // Pass allPerformanceData directly to showVisualization
-                showVisualization('engagement', allPerformanceData), 
+                showVisualization('engagement', allPerformanceData),
                 showVisualization('reach', allPerformanceData),
             ]).then(() => {
                 console.log("All performance charts displayed.");
@@ -618,20 +670,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }).catch(error => {
                 console.error("Error displaying charts:", error);
                 showCustomAlert("An error occurred while displaying charts.", "Chart Error");
-                // If there's an error, hide visualizations 
+                // If there's an error, hide visualizations
                 visualizationContainer.style.display = 'none';
                 logActivity("PERFORMANCE_CHART_ERROR", `Error displaying charts: ${error.message}`); // Log chart display error
             });
         } else {
             showCustomAlert("Could not retrieve performance data. Please check your connection or data.", "Data Error");
             // If no data, hide visualizations
-            visualizationContainer.style.display = 'none'; 
+            visualizationContainer.style.display = 'none';
             logActivity("PERFORMANCE_DATA_ERROR", `Could not retrieve performance data: No data or connection error.`); // Log data retrieval error
         }
     });
-
-    // Ensure visualization container is hidden on page load
-    visualizationContainer.style.display = 'none';
 
     // Automatically open the filter panel on page load
     filterPanel.classList.add('filter-panel-open');
@@ -645,4 +694,14 @@ document.addEventListener('DOMContentLoaded', () => {
     closeFilterPanelButton.addEventListener('click', () => {
         filterPanel.classList.remove('filter-panel-open');
     });
+
+    // Initial load of charts when the authentication token is available
+    window.addEventListener('tokenAvailable', initializePerformanceDashboard, { once: true });
+
+    // Also, check if the token is already available on direct page load
+    if (window.currentUserToken) {
+        initializePerformanceDashboard();
+    } else {
+        console.log("Waiting for authentication token for performance evaluation page initial load...");
+    }
 });
