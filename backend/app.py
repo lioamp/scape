@@ -28,7 +28,10 @@ logging.basicConfig(level=logging.INFO)
 
 # --- Supabase config ---
 SUPABASE_URL = "https://jfajaxpzkjqvdibdyibz.supabase.co"
-SUPABASE_API_KEY = "REMOVED.geM5QBwNnagPeaHdZxTwkbtIfMBubR8rGX1cgbDlj10" # REPLACE THIS WITH YOUR ACTUAL SERVICE_ROLE KEY
+SUPABASE_API_KEY = os.environ.get("SUPABASE_API_KEY")
+
+if not SUPABASE_API_KEY:
+    raise ValueError("SUPABASE_API_KEY environment variable not set.")
 
 HEADERS = {
     "apikey": SUPABASE_API_KEY,
