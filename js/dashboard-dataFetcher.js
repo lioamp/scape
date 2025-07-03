@@ -2,7 +2,7 @@
 export async function fetchPlatformData(platform) { // Removed timeRange parameter
     let normalizedData = [];
     const CACHE_KEY = `platformData_${platform}`; 
-    const CACHE_EXPIRATION_MS = 5 * 60 * 1000; // 5 minutes
+    const CACHE_EXPIRATION_MS = 10 * 1000; // 10 seconds
 
     try {
         const token = window.currentUserToken; // Get token from global scope set by auth.js
