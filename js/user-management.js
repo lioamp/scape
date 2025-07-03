@@ -1,36 +1,14 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
+// Import only necessary Firebase functions, as initialization is handled by auth.js
 import { getAuth, onAuthStateChanged, signOut, getIdToken } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
-import { logActivity } from "/js/auth.js"; // Import the logActivity function
+// Import logActivity and the auth instance from auth.js
+import { logActivity, auth } from "/js/auth.js"; 
 
 // Define the base URL for your Flask API backend
 const API_BASE_URL = "http://127.0.0.1:5000/api";
 
-// Assume firebaseConfig is globally available or imported from auth.js if needed.
-// For this script's scope, we'll keep a minimal config for direct firebase interaction (if any)
-// but rely on auth.js for actual auth state management.
-const firebaseConfig = {
-    apiKey: "AIzaSyCyIr7hWhROGodkcsMJC9n4sEuDOR5NGww",
-    authDomain: "scape-login.firebaseapp.com",
-    projectId: "scape-login",
-    storageBucket: "scape-login.firebasestorage.app",
-    messagingSenderId: "410040228789",
-    appId: "1:410040228789:web:5b9b4b32e91c5549ab17fc",
-    measurementId: "G-GBNRL156FJ"
-};
-
-// Initialize Firebase app if not already initialized
-let app;
-try {
-    app = initializeApp(firebaseConfig);
-} catch (e) {
-    console.warn("Firebase app already initialized. Skipping re-initialization.");
-    app = firebase.app(); // Get the existing app
-}
-
-const auth = getAuth(app); // Get the auth instance associated with the app
-
+// currentUserUid and currentUserToken will now be populated from auth.js's promise
 let currentUserUid = null;
-let currentUserToken = null; // This holds just the ID token string
+let currentUserToken = null; 
 
 // Bootstrap modal instances
 let createUserModalInstance = null;
@@ -97,6 +75,7 @@ function showCustomConfirm(message, title = 'Confirm', onConfirm) {
     const modalBody = document.getElementById('customConfirmModalBody');
     const confirmButton = document.getElementById('customConfirmButton');
 
+    // Set modal content
     if (modalTitle) modalTitle.textContent = title;
     if (modalBody) modalBody.textContent = message;
 
@@ -136,15 +115,19 @@ function showUsersLoadingOverlay(show) {
     }
 }
 
-
-onAuthStateChanged(auth, async (user) => {
-    if (!user) {
-        window.location.href = "/"; // Redirect to root/login page
-    } else {
+// Listen for the tokenAvailable event dispatched by auth.js
+// This ensures that fetchUsers is called only after the token is ready
+window.addEventListener('tokenAvailable', async (event) => {
+    currentUserToken = event.detail.token;
+    // Get the current authenticated user from auth.js
+    const user = auth.currentUser; 
+    if (user) {
         currentUserUid = user.uid;
-        currentUserToken = await getIdToken(user, true);
-        await fetchUsers(); // Call fetchUsers without token as it's now global
+        await fetchUsers(); // Call fetchUsers now that token and UID are available
         logActivity("PAGE_VIEW", "Viewed User Management page."); // Log page view
+    } else {
+        // If no user, redirect to login page
+        window.location.href = "/";
     }
 });
 
@@ -162,7 +145,7 @@ async function fetchUsers() {
     if (!currentUserToken) {
         console.error("Authentication token not available. Cannot fetch users.");
         showCustomAlert("Authentication token not available. Please ensure you are logged in.", "Authentication Required");
-        usersTableBody.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Authentication required to view users.</td></tr>';
+        usersTableBody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Authentication required to view users.</td></tr>'; // Increased colspan
         showUsersLoadingOverlay(false);
         // Ensure tbody is shown if an error occurs and it was hidden by the loading overlay
         usersTableBody.classList.remove('d-none'); 
@@ -186,7 +169,7 @@ async function fetchUsers() {
             logActivity("USER_LIST_FETCH_FAILED", `Failed to fetch user list: ${errorMessage}`);
             showCustomAlert("Error loading users: " + errorMessage, "Error");
             // Display error in table
-            usersTableBody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">Error loading users. ${errorMessage}</td></tr>`;
+            usersTableBody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">Error loading users. ${errorMessage}</td></tr>`; // Increased colspan
             noUsersMessage.classList.add('d-none'); // Hide no data message if error is shown
             // Ensure tbody is shown if an error occurs and it was hidden by the loading overlay
             usersTableBody.classList.remove('d-none'); 
@@ -201,7 +184,7 @@ async function fetchUsers() {
         console.error("Error loading users:", error.message);
         // Error already logged above if it's an API error, otherwise a general client error
         showCustomAlert("An unexpected error occurred while loading users. Please check console for details.", "Error");
-        usersTableBody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">An unexpected error occurred.</td></tr>`;
+        usersTableBody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">An unexpected error occurred.</td></tr>`; // Increased colspan
         noUsersMessage.classList.add('d-none'); // Hide no data message if error is shown
         // Ensure tbody is shown if an error occurs and it was hidden by the loading overlay
         usersTableBody.classList.remove('d-none'); 
@@ -256,6 +239,7 @@ function populateUserTable(users) {
 
         tr.innerHTML = `
             <td>${user.email}</td>
+            <td class="user-id-column">${user.uid}</td> <!-- User ID column is always visible -->
             <td>
                 <input type="text" class="form-control form-control-sm display-name-input" 
                        id="displayName_${user.uid}" name="displayName_${user.uid}" 
@@ -277,7 +261,7 @@ function populateUserTable(users) {
                         <label class="form-check-label" for="marketingTeam_${user.uid}">Marketing Team</label>
                     </div>
                     <div class="form-check form-check-inline">
-                        <input class="form-check-input role-checkbox" type="checkbox" 
+                        <input class="form-check-input" type="checkbox" 
                                data-role="socialMediaManager" id="socialMediaManager_${user.uid}" value="Social Media Manager" 
                                ${userRoles.includes("Social Media Manager") ? "checked" : ""}>
                         <label class="form-check-label" for="socialMediaManager_${user.uid}">Social Media Manager</label>
@@ -323,7 +307,7 @@ function populateUserTable(users) {
     });
 
     console.log("Table tbody innerHTML after population:", tbody.innerHTML); // DEBUG LOG
-    attachTableEventListeners();
+    attachTableEventListeners(); // Attach event listeners for save/delete buttons
 }
 
 
@@ -442,7 +426,7 @@ async function deleteUser(uid, email) { // Added email parameter
     }
 }
 
-// Initialize modals after DOM is loaded
+// Initialize modals and attach static event listeners after DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize Bootstrap modal instances
     const createUserModalElement = document.getElementById('createUserModal');

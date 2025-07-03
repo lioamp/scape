@@ -116,14 +116,14 @@ async function fetchPredictiveData(metricType, forecastMonths) {
         const data = await response.json();
         console.log(`Predictive data for ${metricType} (fixed forecast of ${forecastMonths} months):`, data);
 
-        // --- IMPORTANT FIX: Convert 'year' to 'date' string for frontend charting ---
+        // Dates are now expected to beYYYY-MM-DD from backend
         const processedHistoricalData = data.historical_data.map(item => ({
-            date: `${item.year}-01-01`, // Convert year to a standardized date string
+            date: item.date,
             value: item.value
         }));
 
         const processedForecastData = data.forecast_data.map(item => ({
-            date: `${item.year}-01-01`, // Convert year to a standardized date string
+            date: item.date,
             value: item.value,
             lower_bound: item.lower_bound,
             upper_bound: item.upper_bound
@@ -135,7 +135,6 @@ async function fetchPredictiveData(metricType, forecastMonths) {
             recommendation: data.recommendation,
             message: data.message
         };
-        // --- END FIX ---
 
         predictiveDataCache[cacheKey] = {
             data: processedData, // Store processed data in cache
@@ -282,7 +281,30 @@ function renderChart(chartId, chartInstance, historicalData, forecastData, label
                     }
                 }
             },
-            plugins: {
+            plugins: { // Moved annotation here
+                annotation: {
+                    annotations: {
+                        line: {
+                            type: 'line',
+                            mode: 'vertical',
+                            scaleID: 'x',
+                            value: historicalData.length > 0 ? formattedLabels.indexOf(getMonthYearAbbreviation(historicalData[historicalData.length - 1].date)) + 0.5 : 0, // Position after last historical data point
+                            borderColor: 'rgba(0, 0, 0, 0.5)',
+                            borderWidth: 2,
+                            borderDash: [6, 6],
+                            label: {
+                                enabled: true,
+                                content: 'Forecast Start',
+                                position: 'top',
+                                font: {
+                                    size: 12
+                                },
+                                color: 'rgba(0, 0, 0, 0.8)',
+                                backgroundColor: 'rgba(255, 255, 255, 0.7)'
+                            }
+                        }
+                    }
+                },
                 tooltip: {
                     callbacks: {
                         label: function(context) {
