@@ -54,6 +54,44 @@ function destroyChart(chartId) {
 }
 
 /**
+ * Calculates the linear regression line (slope and intercept) for a set of data points.
+ * @param {Array} data - Array of data points {x, y}.
+ * @returns {object} An object containing slope, intercept, and the regression line points.
+ */
+function calculateLinearRegression(data) {
+    if (data.length < 2) {
+        return { slope: 0, intercept: 0, linePoints: [] };
+    }
+
+    let sumX = 0;
+    let sumY = 0;
+    let sumXY = 0;
+    let sumXX = 0;
+    let n = data.length;
+
+    for (let i = 0; i < n; i++) {
+        sumX += data[i].x;
+        sumY += data[i].y;
+        sumXY += data[i].x * data[i].y;
+        sumXX += data[i].x * data[i].x;
+    }
+
+    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+    const intercept = (sumY - slope * sumX) / n;
+
+    // Generate points for the trend line across the min and max X values
+    const minX = Math.min(...data.map(d => d.x));
+    const maxX = Math.max(...data.map(d => d.x));
+
+    const linePoints = [
+        { x: minX, y: slope * minX + intercept },
+        { x: maxX, y: slope * maxX + intercept }
+    ];
+
+    return { slope, intercept, linePoints };
+}
+
+/**
  * Creates and displays a correlation chart.
  * @param {string} chartId - The ID of the canvas element for the chart.
  * @param {string} title - The title of the chart.
@@ -68,8 +106,8 @@ function createCorrelationChart(chartId, title, xLabel, yLabel, data, correlatio
 
     const ctx = document.getElementById(chartId).getContext('2d');
 
-    // Calculate average Y value for the horizontal line
-    const averageYValue = data.length > 0 ? data.reduce((sum, d) => sum + d.y, 0) / data.length : 0;
+    // Calculate linear regression for the trend line
+    const { linePoints } = calculateLinearRegression(data);
 
     charts[chartId] = new Chart(ctx, {
         type: 'scatter',
@@ -82,6 +120,17 @@ function createCorrelationChart(chartId, title, xLabel, yLabel, data, correlatio
                 borderWidth: 1,
                 pointRadius: 5,
                 pointHoverRadius: 7,
+            },
+            {
+                label: 'Trend Line',
+                data: linePoints, // Use the calculated line points
+                type: 'line', // This dataset will be a line
+                borderColor: 'rgb(255, 99, 132)', // Red color for the trend line
+                backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                borderWidth: 2,
+                pointRadius: 0, // No points for the trend line
+                fill: false,
+                tension: 0.1, // Slight curve for smoother line
             }]
         },
         options: {
@@ -100,27 +149,10 @@ function createCorrelationChart(chartId, title, xLabel, yLabel, data, correlatio
                         }
                     }
                 },
-                // Re-enable annotation plugin configuration
+                // Remove the horizontal average line annotation
                 annotation: {
                     annotations: {
-                        line1: {
-                            type: 'line',
-                            mode: 'horizontal',
-                            scaleID: 'y',
-                            value: averageYValue, // Avg Y value
-                            borderColor: 'rgb(255, 99, 132)',
-                            borderWidth: 1,
-                            borderDash: [5, 5],
-                            label: {
-                                enabled: true,
-                                content: 'Avg ' + yLabel,
-                                position: 'end',
-                                color: 'rgb(255, 99, 132)',
-                                font: {
-                                    size: 10
-                                }
-                            }
-                        }
+                        // No annotations by default, can add specific ones if needed later
                     }
                 }
             },
@@ -131,13 +163,15 @@ function createCorrelationChart(chartId, title, xLabel, yLabel, data, correlatio
                     title: {
                         display: true,
                         text: xLabel
-                    }
+                    },
+                    beginAtZero: true // Ensure X-axis starts at zero
                 },
                 y: {
                     title: {
                         display: true,
                         text: yLabel
-                    }
+                    },
+                    beginAtZero: true // Ensure Y-axis starts at zero
                 }
             }
         }
@@ -146,7 +180,7 @@ function createCorrelationChart(chartId, title, xLabel, yLabel, data, correlatio
     // Update recommendation text
     const recommendationElement = document.getElementById(`${chartId.replace('Chart', '')}Recommendation`);
     if (recommendationElement) {
-        recommendationElement.innerHTML = `<strong>Correlation Coefficient (Spearman): ${correlationCoefficient !== null ? correlationCoefficient : 'N/A'}</strong><br>${recommendationText}`;
+        recommendationElement.innerHTML = `<strong>Correlation Coefficient (Spearman): ${correlationCoefficient !== null ? correlationCoefficient.toFixed(2) : 'N/A'}</strong><br>${recommendationText}`;
     }
 }
 
@@ -165,7 +199,7 @@ function displayCorrelations() {
 
     // Engagement / Reach
     showChartLoadingOverlay('engageReach', true);
-    if (engageReachData.length > 0) {
+    if (engageReachData.length > 1) { // Need at least 2 points for a trend line
         createCorrelationChart(
             'engageReachChart',
             'Engagement vs. Reach',
@@ -176,15 +210,15 @@ function displayCorrelations() {
             recommendations.engage_reach
         );
     } else {
-        showCustomAlert("No sufficient data for Engagement vs. Reach correlation.", "Data Missing");
+        showCustomAlert("Not enough data for Engagement vs. Reach correlation. Need at least 2 data points.", "Data Missing");
         destroyChart('engageReachChart');
-        document.getElementById('engageReachRecommendation').innerHTML = "<strong>No data available for this correlation.</strong>";
+        document.getElementById('engageReachRecommendation').innerHTML = "<strong>Not enough data available for this correlation.</strong>";
     }
     showChartLoadingOverlay('engageReach', false);
 
     // Engagement / Sales
     showChartLoadingOverlay('engageSales', true);
-    if (engageSalesData.length > 0) {
+    if (engageSalesData.length > 1) { // Need at least 2 points for a trend line
         createCorrelationChart(
             'engageSalesChart',
             'Engagement vs. Sales',
@@ -195,15 +229,15 @@ function displayCorrelations() {
             recommendations.engage_sales
         );
     } else {
-        showCustomAlert("No sufficient data for Engagement vs. Sales correlation.", "Data Missing");
+        showCustomAlert("Not enough data for Engagement vs. Sales correlation. Need at least 2 data points.", "Data Missing");
         destroyChart('engageSalesChart');
-        document.getElementById('engageSalesRecommendation').innerHTML = "<strong>No data available for this correlation.</strong>";
+        document.getElementById('engageSalesRecommendation').innerHTML = "<strong>Not enough data available for this correlation.</strong>";
     }
     showChartLoadingOverlay('engageSales', false);
 
     // Reach / Sales
     showChartLoadingOverlay('reachSales', true);
-    if (reachSalesData.length > 0) {
+    if (reachSalesData.length > 1) { // Need at least 2 points for a trend line
         createCorrelationChart(
             'reachSalesChart',
             'Reach vs. Sales',
@@ -214,9 +248,9 @@ function displayCorrelations() {
             recommendations.reach_sales
         );
     } else {
-        showCustomAlert("No sufficient data for Reach vs. Sales correlation.", "Data Missing");
+        showCustomAlert("Not enough data for Reach vs. Sales correlation. Need at least 2 data points.", "Data Missing");
         destroyChart('reachSalesChart');
-        document.getElementById('reachSalesRecommendation').innerHTML = "<strong>No data available for this correlation.</strong>";
+        document.getElementById('reachSalesRecommendation').innerHTML = "<strong>Not enough data available for this correlation.</strong>";
     }
     showChartLoadingOverlay('reachSales', false);
 }
@@ -224,8 +258,8 @@ function displayCorrelations() {
 
 /**
  * Fetches correlation data from the backend API for a given date range.
- * @param {string} startDate - The start date in YYYY-MM-DD format (optional).
- * @param {string} endDate - The end date in YYYY-MM-DD format (optional).
+ * @param {string} startDate - The start date inYYYY-MM-DD format (optional).
+ * @param {string} endDate - The end date inYYYY-MM-DD format (optional).
  * @param {string} platform - The platform to filter by (e.g., 'facebook', 'tiktok', 'all').
  */
 async function fetchCorrelationData(startDate = null, endDate = null, platform = 'all') {
