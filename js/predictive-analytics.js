@@ -213,8 +213,8 @@ function renderChart(chartId, chartInstance, historicalData, forecastData, label
                 {
                     label: `Historical ${label}`,
                     data: historicalPlotData,
-                    borderColor: 'rgb(75, 192, 192)',
-                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    borderColor: '#5A4CD1', // Purple hue
+                    backgroundColor: 'rgba(90, 76, 209, 0.2)', // Lighter purple
                     borderWidth: 2,
                     pointRadius: 3,
                     fill: false,
@@ -223,8 +223,8 @@ function renderChart(chartId, chartInstance, historicalData, forecastData, label
                 {
                     label: `Forecasted ${label}`,
                     data: forecastPlotData,
-                    borderColor: 'rgb(255, 99, 132)',
-                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                    borderColor: '#E74C3C', // Red hue
+                    backgroundColor: 'rgba(231, 76, 60, 0.2)', // Lighter red
                     borderWidth: 2,
                     borderDash: [5, 5],
                     pointRadius: 3,
@@ -234,8 +234,8 @@ function renderChart(chartId, chartInstance, historicalData, forecastData, label
                 {
                     label: 'Lower Bound',
                     data: confidenceLowerPlotData,
-                    borderColor: 'rgba(75, 192, 192, 0)',
-                    backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                    borderColor: 'rgba(90, 76, 209, 0)', // Transparent purple
+                    backgroundColor: 'rgba(90, 76, 209, 0.1)', // Very light purple fill
                     pointRadius: 0,
                     fill: '+1',
                     hidden: false
@@ -243,8 +243,8 @@ function renderChart(chartId, chartInstance, historicalData, forecastData, label
                 {
                     label: 'Upper Bound',
                     data: confidenceUpperPlotData,
-                    borderColor: 'rgba(75, 192, 192, 0)',
-                    backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                    borderColor: 'rgba(90, 76, 209, 0)', // Transparent purple
+                    backgroundColor: 'rgba(90, 76, 209, 0.1)', // Very light purple fill
                     pointRadius: 0,
                     fill: '-1',
                     hidden: false
