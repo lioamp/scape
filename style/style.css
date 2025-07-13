@@ -34,7 +34,7 @@ body.login-page-body {
 nav.sidebar {
   width: 250px; /* Increased sidebar width */
   /* Changed background to a deeper blue-purple gradient */
-  background: linear-gradient(180deg, #302066, #1A1230); /* Blue-purple gradient for sidebar */
+  background: linear-gradient(#210041, #49018d, #210041); /* Blue-purple gradient for sidebar */
   color: white;
   height: 100vh; /* Sidebar takes full viewport height */
   padding: 20px; /* Overall padding for the sidebar content */
@@ -123,7 +123,7 @@ nav.sidebar a.nav-link.active .icon {
     width: calc(100% - 30px); /* Adjusted width to account for sidebar-bottom-btn-container padding */
     padding: 12px 15px;
     /* Use the same blue-purple gradient as login button */
-    background: linear-gradient(135deg, #7B68EE, #5A4CD1); /* Blue-purple gradient for button */
+    background: linear-gradient(135deg,#49018d, #6407c2, #49018d); /* Blue-purple gradient for button */
     color: white;
     border: none;
     border-radius: 8px;
@@ -318,7 +318,7 @@ main {
 /* Dashboard Specific Styles */
 .dashboard-btn-gradient {
     /* Consistent button style with login and sidebar */
-    background: linear-gradient(135deg, #7B68EE, #5A4CD1); /* Blue-purple gradient */
+    background: linear-gradient(135deg,#49018d, #6407c2, #49018d); /* Blue-purple gradient */
     color: white;
     border: none;
     border-radius: 8px;
@@ -360,7 +360,7 @@ main {
 
 /* Small Summary Card Specifics */
 .summary-total-card {
-    background: linear-gradient(180deg, #140375, #8c80fa); /* Purple gradient background */
+    background: linear-gradient(180deg, #210041, #3806c0); /* Purple gradient background */
     border-radius: 10px; /* Slightly more rounded than default */
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); /* Softer shadow for small cards */
     padding: 1.25rem !important; /* Adjust padding for better spacing */
@@ -373,7 +373,7 @@ main {
 }
 
 .summary-total-card .text-current {
-    color: rgb(7, 7, 7) !important; /* White text for muted */
+    color: rgb(255, 255, 255) !important; /* White text for muted */
 }
 
 .summary-card-value {
