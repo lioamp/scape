@@ -38,6 +38,13 @@
     </a>
   </div>
 
+  <!-- User Profile Section -->
+  <div id="user-profile-section" class="user-profile-section text-center py-3 px-3 d-none">
+    <i class="fas fa-user-circle fa-2x mb-2"></i> <!-- Profile icon -->
+    <div id="user-display-name" class="user-display-name fw-bold"></div>
+    <div id="user-role" class="user-role"></div> <!-- Removed text-muted class -->
+  </div>
+
   <!-- Logout Button Container -->
   <div class="sidebar-bottom-btn-container px-3 pb-3">
     <button onclick="logout()" class="btn sidebar-bottom-btn d-flex align-items-center justify-content-center w-100">
@@ -46,3 +53,27 @@
     </button>
   </div>
 </nav>
+
+<style>
+  /* Basic styling for the user profile section */
+  .user-profile-section {
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    padding-top: 15px;
+    margin-top: auto; /* Pushes it above the logout button */
+    color: white;
+  }
+
+  .user-profile-section .fa-user-circle {
+    color: #f8f9fa; /* Light color for the icon */
+  }
+
+  .user-profile-section .user-display-name {
+    font-size: 1rem;
+    margin-top: 5px;
+  }
+
+  .user-profile-section .user-role {
+    font-size: 0.85rem;
+    color: white; /* Explicitly set role text color to white */
+  }
+</style>
