@@ -1,6 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-analytics.js";
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js"; // Added onAuthStateChanged
+// Removed sendPasswordResetEmail import as it's no longer used for fake emails
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js"; 
 
 const firebaseConfig = {
   apiKey: "AIzaSyCyIr7hWhROGodkcsMJC9n4sEuDOR5NGww",
@@ -18,6 +19,20 @@ const auth = getAuth(app);
 
 const loginForm = document.getElementById("login-form");
 const errorMessage = document.getElementById("error-message");
+const forgotPasswordLink = document.getElementById("forgot-password-link");
+
+// Get modal elements
+const messageModal = new bootstrap.Modal(document.getElementById('messageModal'));
+const messageModalBody = document.getElementById('messageModalBody');
+
+/**
+ * Displays a message in a Bootstrap modal.
+ * @param {string} message - The message to display.
+ */
+function showModalMessage(message) {
+    messageModalBody.textContent = message;
+    messageModal.show();
+}
 
 /**
  * Logs an activity to the backend activity log.
@@ -54,13 +69,9 @@ async function logActivity(action, details = '') {
 }
 
 // Listen for authentication state changes to log initial page views/reloads
-// This runs whenever the auth state changes (login, logout, refresh)
 onAuthStateChanged(auth, (user) => {
     if (user) {
-        // User is signed in. This is a good place to log a "Page View" or "App Loaded" event
-        // for any page that requires authentication.
-        // We'll primarily use this for initial page loads of authenticated pages.
-        // For login success, we'll log it specifically in the signInWithEmailAndPassword .then()
+        // User is signed in.
     }
 });
 
@@ -85,7 +96,20 @@ loginForm.addEventListener("submit", (e) => {
     .catch((error) => {
       errorMessage.textContent = error.message;
       console.error("Login failed:", error.code, error.message);
-      // You could also log failed login attempts if needed
-      // logActivity("LOGIN_ATTEMPT_FAILED", `Attempted login for '${email}' failed: ${error.message}`);
     });
+});
+
+// Event listener for "Forgot Password?" link
+forgotPasswordLink.addEventListener("click", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("username").value;
+
+    if (!email) {
+        showModalMessage("Please enter your email address in the 'E-mail' field to simulate password reset.");
+        return;
+    }
+
+    // Simulate sending a password reset email for testing purposes
+    showModalMessage(`A password reset link would normally be sent to ${email}. For testing, this is a simulated message.`);
+    console.log("Simulated password reset email sent to:", email);
 });
