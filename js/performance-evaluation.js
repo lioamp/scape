@@ -227,8 +227,8 @@ function renderChart(chartId, chartInstance, historicalData, label, unit = '', c
                     {
                         label: 'Value',
                         data: [overallCurrentValue, goalValue],
-                        backgroundColor: ['#5A4CD1', '#FF6384'], // Purple for current, Red for goal
-                        borderColor: ['#5A4CD1', '#FF6384'],
+                        backgroundColor: ['#5A4CD1', '#E74C3C'], // Purple for current, Red for goal
+                        borderColor: ['#5A4CD1', '#E74C3C'],
                         borderWidth: 1
                     }
                 ]
@@ -274,8 +274,8 @@ function renderChart(chartId, chartInstance, historicalData, label, unit = '', c
             {
                 label: `Historical ${label}`,
                 data: plotData,
-                borderColor: 'rgb(75, 192, 192)',
-                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                borderColor: '#5A4CD1', // Purple hue
+                backgroundColor: 'rgba(90, 76, 209, 0.2)', // Lighter purple
                 borderWidth: 2,
                 pointRadius: 3,
                 fill: false,
@@ -287,8 +287,8 @@ function renderChart(chartId, chartInstance, historicalData, label, unit = '', c
             datasets.push({
                 label: `Goal ${label}`,
                 data: Array(allDates.length).fill(goalValue),
-                borderColor: 'rgb(255, 99, 132)',
-                backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                borderColor: '#E74C3C', // Red hue
+                backgroundColor: 'rgba(231, 76, 60, 0.2)', // Lighter red
                 borderWidth: 2,
                 borderDash: [5, 5],
                 pointRadius: 0,
@@ -565,6 +565,7 @@ async function initializePerformanceDashboard() {
 
     if (allPerformanceData) {
         Promise.all([
+            // Pass allPerformanceData directly to showVisualization
             showVisualization('engagement', allPerformanceData),
             showVisualization('reach', allPerformanceData),
         ]).then(() => {

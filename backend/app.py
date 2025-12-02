@@ -168,7 +168,7 @@ def fetch_table(table_name, select="*", order=None, limit=None, start_date=None,
         else:
             # Ensure Prefer header is not set to 'count=exact' for subsequent paginated calls
             # unless the original 'count' flag was true for the very first request
-            if "Prefer" in current_headers and not (count and is_initial_call):
+            if "Prefer" in current_headers:
                 del current_headers["Prefer"]
         
         logging.info(f"Attempting to fetch from URL: {full_url}")
@@ -834,10 +834,14 @@ def performance_data():
         performance_charts_data = aggregated_social_data[['date', 'engagement', 'engagement_total', 'reach_total']].to_dict(orient='records')
         performance_charts_data.sort(key=lambda x: x['date']) # Ensure sorted by date
 
+        # Generate performance insights (NEW ADDITION)
+        performance_insights = generate_performance_insights(aggregated_social_data, aggregated_sales_data_for_charts, start_date, end_date, platform_filter)
+
         return jsonify({
             "performance_charts_data": performance_charts_data, # Social media charts data
             "sales_charts_data": aggregated_sales_data_for_charts.to_dict(orient='records'), # Aggregated sales data for charts
-            "total_sales_summary": total_sales # Include total sales summary here
+            "total_sales_summary": total_sales, # Include total sales summary here
+            "performance_insights": performance_insights # NEW: Add performance insights
         })
 
     except Exception as e:
@@ -960,37 +964,231 @@ def perform_linear_regression_forecast(series, forecast_periods):
 
 def generate_recommendation(historical_series, forecast_results, metric_name):
     """
-    Generates a recommendation based on historical and forecasted trends for monthly data.
+    Generates a recommendation based on historical and forecasted trends for monthly data,
+    with added business-side insights.
     """
     if not historical_series.empty and forecast_results:
         last_historical_value = historical_series.iloc[-1]
         
-        # Get the forecast for the next month
-        forecast_value_next_month = forecast_results[0]['value'] if forecast_results else last_historical_value
-
-        # Calculate historical trend (e.g., average change over the last 6 months)
-        if len(historical_series) >= 6:
-            recent_historical_trend = (historical_series.iloc[-1] - historical_series.iloc[-6]) / 5 # Average monthly change
-        elif len(historical_series) >= 2:
-            recent_historical_trend = historical_series.iloc[-1] - historical_series.iloc[-2] # Last month's change
+        # Calculate overall trend from the forecast results
+        # Use the first and last forecasted values to determine the long-term trend
+        if len(forecast_results) > 1:
+            forecast_start_value = forecast_results[0]['value']
+            forecast_end_value = forecast_results[-1]['value']
+            # Calculate the percentage change over the entire forecast period
+            overall_forecast_change_percent = ((forecast_end_value - forecast_start_value) / forecast_start_value) * 100 if forecast_start_value != 0 else 0
         else:
-            recent_historical_trend = 0 # No significant trend to calculate
+            # If only one forecast point, use the change from last historical
+            overall_forecast_change_percent = ((forecast_results[0]['value'] - last_historical_value) / last_historical_value) * 100 if last_historical_value != 0 else 0
 
-        # Compare next month's forecast to last historical value
-        change_percent = ((forecast_value_next_month - last_historical_value) / last_historical_value) * 100 if last_historical_value != 0 else 0
+
+        # Use the next month's forecast for the immediate value in the first sentence
+        forecast_value_next_month = forecast_results[0]['value'] if forecast_results else last_historical_value
 
         recommendation = f"Based on historical data and projected trends, your {metric_name} is forecasted to be around {forecast_value_next_month:,.0f} next month."
 
-        if change_percent > 5:
-            recommendation += " This indicates a strong positive growth. Consider investing more in strategies that have driven this success."
-        elif change_percent < -5:
-            recommendation += " This suggests a potential decline. It's crucial to analyze recent activities and re-evaluate your strategy to mitigate this trend."
+        if overall_forecast_change_percent > 5:
+            recommendation += (f" The long-term forecast indicates a strong positive growth of approximately +{overall_forecast_change_percent:.1f}% over the next 3 years. "
+                               f"This is an excellent sign for {metric_name} performance and suggests sustained positive momentum. "
+                               f"Consider doubling down on successful strategies that have driven this growth, and explore opportunities to scale up initiatives contributing to this positive outlook. "
+                               f"Proactive investment in these areas can lead to significant long-term gains.")
+        elif overall_forecast_change_percent < -5:
+            recommendation += (f" The long-term forecast indicates a potential decline of approximately -{-overall_forecast_change_percent:.1f}% over the next 3 years. "
+                               f"This trend could significantly impact overall business objectives. "
+                               f"It's crucial to immediately analyze recent activities and market shifts to identify root causes of this projected decline. "
+                               f"We recommend re-evaluating your current strategy for {metric_name} to mitigate this trend and implement corrective actions to stabilize or reverse the decline. "
+                               f"Early intervention is key to preventing further losses.")
         else:
-            recommendation += " This indicates a stable trend. Continue optimizing current efforts and explore new avenues for growth."
+            recommendation += (f" The long-term forecast indicates a relatively stable trend ({overall_forecast_change_percent:.1f}%) over the next 3 years. "
+                               f"While stability can be good, it also suggests a lack of significant growth. "
+                               f"Continue optimizing current efforts, but also explore new avenues or innovative strategies to stimulate further growth and achieve higher {metric_name} targets. "
+                               f"Consider A/B testing new approaches, targeting new segments, or diversifying your efforts to break through current plateaus.")
         
         return recommendation
     else:
-        return f"Not enough data to provide a comprehensive recommendation for {metric_name}. Please upload more historical data."
+        return f"Not enough data to provide a comprehensive recommendation for {metric_name}. Please upload more historical data to enable robust forecasting and insights."
+
+# NEW FUNCTION: Generate Performance Insights
+def generate_performance_insights(social_data_df, sales_data_df, start_date, end_date, platform_filter):
+    """
+    Generates text-based insights for overall performance based on aggregated social and sales data.
+    This function analyzes trends and provides actionable recommendations.
+    """
+    insights = []
+    period_str = ""
+    if start_date and end_date:
+        period_str = f" from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
+    
+    platform_str = ""
+    if platform_filter != 'all':
+        platform_str = f" on {platform_filter.capitalize()}"
+
+    # Insight for Sales Performance
+    if not sales_data_df.empty:
+        total_sales = sales_data_df['sales_total'].sum()
+        insights.append(f"Your total sales revenue{period_str} is approximately ${total_sales:,.2f}. ")
+        
+        if len(sales_data_df) >= 2:
+            current_period_sales = sales_data_df['sales_total'].iloc[-1]
+            previous_period_sales = sales_data_df['sales_total'].iloc[-2]
+            sales_change_percent = ((current_period_sales - previous_period_sales) / previous_period_sales) * 100 if previous_period_sales != 0 else 0
+
+            if sales_change_percent > 5:
+                insights.append(f"Sales show strong recent growth (+{sales_change_percent:.1f}%). Continue to invest in high-performing products and sales channels. ")
+            elif sales_change_percent < -5:
+                insights.append(f"Sales have recently declined (-{-sales_change_percent:.1f}%). Investigate recent market changes or campaign performance to address this. ")
+            else:
+                insights.append(f"Sales are stable. Look for new market opportunities or product launches to drive further growth. ")
+    else:
+        insights.append(f"No sales data available for the selected period{period_str}. ")
+
+    # Insight for Social Media Engagement
+    if not social_data_df.empty:
+        total_engagement = social_data_df['engagement_total'].sum()
+        avg_engagement_rate = social_data_df['engagement'].mean() # Average of the calculated engagement rates per period
+        insights.append(f"Your social media campaigns{platform_str} generated a total of {total_engagement:,.0f} engagements with an average engagement rate of {avg_engagement_rate:.2f}%{period_str}. ")
+
+        if len(social_data_df) >= 2:
+            current_period_engagement = social_data_df['engagement_total'].iloc[-1]
+            previous_period_engagement = social_data_df['engagement_total'].iloc[-2]
+            engagement_change_percent = ((current_period_engagement - previous_period_engagement) / previous_period_engagement) * 100 if previous_period_engagement != 0 else 0
+
+            if engagement_change_percent > 10: # Higher threshold for social media
+                insights.append(f"Engagement is surging (+{engagement_change_percent:.1f}%). Identify top-performing content and replicate its success. ")
+            elif engagement_change_percent < -10:
+                insights.append(f"Engagement has dropped (-{-engagement_change_percent:.1f}%). Re-evaluate content strategy and audience targeting. ")
+            else:
+                insights.append(f"Engagement is consistent. Experiment with new content formats or call-to-actions to boost interaction. ")
+    else:
+        insights.append(f"No social media engagement data available{platform_str} for the selected period. ")
+
+    # Insight for Social Media Reach
+    if not social_data_df.empty:
+        total_reach = social_data_df['reach_total'].sum()
+        insights.append(f"Your total social media reach{platform_str}{period_str} was {total_reach:,.0f}. ")
+
+        if len(social_data_df) >= 2:
+            current_period_reach = social_data_df['reach_total'].iloc[-1]
+            previous_period_reach = social_data_df['reach_total'].iloc[-2]
+            reach_change_percent = ((current_period_reach - previous_period_reach) / previous_period_reach) * 100 if previous_period_reach != 0 else 0
+
+            if reach_change_percent > 10:
+                insights.append(f"Reach is expanding (+{reach_change_percent:.1f}%). Consider allocating more budget to channels or content types that are driving this reach. ")
+            elif reach_change_percent < -10:
+                insights.append(f"Reach has contracted (-{-reach_change_percent:.1f}%). Review ad spend, targeting, and content distribution strategies. ")
+            else:
+                insights.append(f"Reach is stable. Explore new platforms or partnerships to expand your audience. ")
+    else:
+        insights.append(f"No social media reach data available{platform_str} for the selected period. ")
+
+    return " ".join(insights)
+
+
+def get_recommendation_text(correlation, var1_name, var2_name, series1, series2, total_possible_points):
+    """
+    Generates a recommendation based on correlation, including insights about data point positioning,
+    gaps, and significant changes. Provides actionable advice.
+    Args:
+        correlation (float): The calculated correlation coefficient.
+        var1_name (str): Name of the first variable.
+        var2_name (str): Name of the second variable.
+        series1 (pd.Series): The data series for the first variable used in correlation (non-zero values).
+        series2 (pd.Series): The data series for the second variable used in correlation (non-zero values).
+        total_possible_points (int): The total number of unique dates in the merged dataset before filtering for non-zero values.
+    """
+    if pd.isna(correlation):
+        return f"Not enough meaningful data to calculate a correlation between {var1_name} and {var2_name} for the selected period/platform. Please ensure you have sufficient non-zero data points for both metrics.<br>"
+    
+    correlation_abs = abs(correlation)
+    
+    if correlation_abs >= 0.7:
+        strength = "strong"
+    elif correlation_abs >= 0.3:
+        strength = "moderate"
+    else:
+        strength = "weak or negligible"
+
+    message = ""
+    
+    if correlation > 0.3:
+        direction = "positive"
+        if strength == "strong":
+            message = (f"There is a strong positive relationship between your {var1_name} and {var2_name}. "
+                       f"This means when {var1_name} increases, {var2_name} also significantly increases. <br>"
+                       f"This is a powerful connection for your business. We recommend identifying the specific campaigns, content, or actions that led to high {var1_name} on dates where {var2_name} also saw significant boosts. Focus your efforts and investment on replicating and scaling these successful strategies to maximize {var2_name}'s performance.<br>")
+        else: # moderate positive
+            message = (f"There is a moderate positive relationship between your {var1_name} and {var2_name}. "
+                       f"This suggests that as {var1_name} increases, {var2_name} tends to increase, but not always dramatically. <br>"
+                       f"This relationship offers opportunities for improvement. Analyze periods where both {var1_name} and {var2_name} performed well simultaneously. Can you identify any common factors or specific activities during those times? Experiment with initiatives that aim to strengthen this positive link, such as optimizing your content to drive both engagement and sales.<br>")
+    elif correlation < -0.3:
+        direction = "negative"
+        if strength == "strong":
+            message = (f"There is a strong negative relationship between your {var1_name} and {var2_name}. "
+                       f"This indicates that as {var1_name} increases, {var2_name} significantly decreases. <br>"
+                       f"This is a critical area for immediate attention. Identify specific dates or campaigns where {var1_name} was high but {var2_name} was low. What happened during those periods? It's crucial to investigate potential conflicts in your strategy, such as ad campaigns that drive clicks but not conversions, and adjust your approach for {var1_name} to mitigate its negative impact on {var2_name}.<br>")
+        else: # moderate negative
+            message = (f"There is a moderate negative relationship between your {var1_name} and {var2_name}. "
+                       f"This suggests that as {var1_name} increases, {var2_name} tends to decrease. <br>"
+                       f"This inverse trend warrants investigation. Look for specific instances where this negative pattern was most pronounced. Are certain types of content or activities for {var1_name} inadvertently detracting from {var2_name}? Adjust your approach to minimize any adverse effects and ensure your efforts are aligned with overall business goals.<br>")
+    else: # weak or negligible
+        message = (f"There is a weak or negligible relationship between your {var1_name} and {var2_name}. "
+                   f"This means changes in {var1_name} do not consistently or significantly influence {var2_name} in a direct or inverse manner. <br>"
+                   f"From a business perspective, {var1_name} is likely not a primary driver for {var2_name} in its current state. "
+                   f"Consider exploring other factors that might have a stronger impact on {var2_name}, or refine your strategies for {var1_name} to see if a more direct link can be established. For example, if you want {var1_name} to drive {var2_name}, ensure your calls-to-action are clear and your funnels are optimized.<br>")
+
+    # --- Add insights about data point positioning and distribution ---
+    additional_insights = []
+    current_points = len(series1) # Number of points used for correlation calculation
+
+    if current_points > 0:
+        # 1. Detect Gaps/Sparsity
+        if total_possible_points > current_points:
+            gap_percentage = ((total_possible_points - current_points) / total_possible_points) * 100
+            additional_insights.append(f"Data Gaps: Approximately {gap_percentage:.1f}% of the potential daily data points had zero or missing values for one or both metrics. This can make it harder to see a complete picture of their relationship. We recommend ensuring consistent data collection and investigating why data might be missing or zero on certain days.<br>")
+        
+        # 2. Detect Significant Increases (instead of just "outliers")
+        def detect_significant_changes(s, name, threshold_percent=50, limit=3): # Added limit parameter
+            if len(s) < 2:
+                return []
+            
+            changes = s.pct_change() * 100
+            # Filter for positive changes above threshold, then sort by change percentage (descending)
+            significant_increases = changes[changes > threshold_percent].sort_values(ascending=False)
+            
+            # Take only the top 'limit' changes
+            top_increases = significant_increases.head(limit)
+
+            increase_dates = []
+            for date_idx, change_val in top_increases.items():
+                # Find the actual value on that date for context
+                actual_value = s.loc[date_idx]
+                increase_dates.append(f"{date_idx.strftime('%Y-%m-%d')} (Value: {actual_value:,.0f}, Change: +{change_val:.1f}%)")
+            return increase_dates
+
+        significant_increases1 = detect_significant_changes(series1, var1_name, limit=3) # Limit to top 3
+        significant_increases2 = detect_significant_changes(series2, var2_name, limit=3) # Limit to top 3
+
+        if significant_increases1 or significant_increases2:
+            increase_message = "Significant Increases Detected: We observed notable increases that stand out from the typical daily fluctuations."
+            if significant_increases1:
+                increase_message += f"<br>For {var1_name}, the top increases occurred on: {'; '.join(significant_increases1)}."
+                if len(significant_increases1) < len(series1[series1.pct_change() * 100 > 50]): # Check if there were more than the limit
+                    increase_message += " (and potentially more)."
+            if significant_increases2:
+                increase_message += f"<br>For {var2_name}, the top increases occurred on: {'; '.join(significant_increases2)}."
+                if len(significant_increases2) < len(series2[series2.pct_change() * 100 > 50]): # Check if there were more than the limit
+                    increase_message += " (and potentially more)."
+            increase_message += "<br>For these dates, we highly recommend reviewing your activities, campaigns, or external events that might have contributed to these surges. Understanding these drivers can help you replicate success.<br>"
+            additional_insights.append(increase_message)
+
+        # 3. Suggest investigating specific periods for weak correlations
+        if strength == "weak or negligible" and current_points > 10:
+            additional_insights.append(f"Deeper Dive Recommended: Given the weak relationship, it's beneficial to manually examine the periods where {var1_name} and {var2_name} moved in the same direction (both up or both down) or in opposite directions. This qualitative analysis can reveal patterns or external factors that a simple correlation might miss. For instance, did a specific marketing push for {var1_name} coincide with an unexpected dip in {var2_name}?<br>")
+
+    if additional_insights:
+        message += "<br>Further Insights & Recommendations:<br>" + "".join(additional_insights)
+
+    return message
 
 @app.route('/api/predictive-analytics', methods=['GET'])
 @verify_token
@@ -1090,9 +1288,7 @@ def predictive_analytics():
         # Determine the cutoff date for historical data to be used in the model.
         # If the current calendar day is NOT the last day of the month, then the current calendar month's
         # data is inherently incomplete for monthly aggregation purposes.
-        # For simplicity, if it's not the last day of the month, we exclude the current month.
-        # A more robust check might involve comparing current_calendar_date.day with calendar.monthrange(year, month)[1]
-        # For now, if it's not the first day of the next month, we consider current month incomplete.
+        # For simplicity, if it's not the first day of the next month, we exclude the current month.
         if current_calendar_date.day < pd.Timestamp(current_calendar_date).days_in_month:
             # If it's not the last day of the month, exclude the current month
             last_complete_historical_date_for_model = (current_calendar_date.replace(day=1) - timedelta(days=1)).replace(day=1)
@@ -1116,7 +1312,7 @@ def predictive_analytics():
             return jsonify({
                 "historical_data": [], # No historical data for plot if filtered too much
                 "forecast_data": [],
-                "recommendation": f"Not enough *complete* historical data (at least 24 months) to generate a robust monthly forecast for {metric_name}. Please upload more complete historical data.",
+                "recommendation": f"Not enough complete historical data (at least 24 months) to generate a robust monthly forecast for {metric_name}. Please upload more complete historical data.",
                 "message": "Not enough complete historical data for forecasting."
             }), 200
         # --- END LOGIC ---
@@ -1224,9 +1420,12 @@ def correlation_analysis():
     merged_df = pd.merge(combined_social_df, sales_daily_agg, left_index=True, right_index=True, how='outer')
     merged_df = merged_df.fillna(0) # Fill any remaining NaNs with 0
 
+    # Determine total possible unique dates in the merged dataset before filtering for correlation.
+    # This helps in assessing data gaps.
+    total_possible_dates = len(merged_df.index.unique())
+
     # For correlation calculation, we need common data points.
     # Filter for rows where all relevant columns ('engagement', 'reach', 'revenue') have data (not zero after fillna).
-    # This specifically addresses the 'insufficient data' for correlation, while still providing `chart_data` for plotting what's available.
     correlation_df = merged_df[(merged_df['engagement'] > 0) & (merged_df['reach'] > 0) & (merged_df['revenue'] > 0)].copy()
 
     # Prepare data for scatter plots (from the full merged_df, which includes dates with zeros after fillna)
@@ -1244,52 +1443,6 @@ def correlation_analysis():
     correlations = {}
     recommendations = {}
 
-    def get_recommendation_text(correlation, var1_name, var2_name):
-        if pd.isna(correlation):
-            return f"Not enough data to calculate a meaningful correlation between {var1_name} and {var2_name} for the selected period/platform."
-        
-        correlation_abs = abs(correlation)
-        if correlation_abs >= 0.7:
-            strength = "strong"
-            action = "significantly"
-        elif correlation_abs >= 0.3:
-            strength = "moderate"
-            action = "tend to"
-        else:
-            strength = "weak or negligible"
-            action = "do not significantly"
-
-        if correlation > 0.3:
-            direction = "positive"
-            message = f"There is a {strength} {direction} correlation between {var1_name} and {var2_name} (Correlation: {correlation:.2f}). This suggests that as {var1_name} increases, {var2_name} {action} increase. Consider optimizing strategies that synergistically boost both."
-        elif correlation < -0.3:
-            direction = "negative"
-            message = f"There is a {strength} {direction} correlation between {var1_name} and {var2_name} (Correlation: {correlation:.2f}). This indicates that as {var1_name} increases, {var2_name} {action} decrease. You should investigate potential conflicts or inverse relationships and adjust your campaign strategy accordingly."
-        else:
-            message = f"There is a {strength} correlation between {var1_name} and {var2_name} (Correlation: {correlation:.2f}). This suggests that changes in {var1_name} {action} influence {var2_name} in a direct or inverse manner. It might be beneficial to explore other factors or refine your approach."
-        return message
-
-    # Check if there's enough data in the *correlation_df* for calculation
-    min_data_points = 5 # A reasonable minimum for meaningful correlation analysis
-    if len(correlation_df) < min_data_points:
-        logging.warning(f"Insufficient common data points for correlation analysis: {len(correlation_df)} found, {min_data_points} required.")
-        return jsonify({
-            "message": f"Not enough common data points ({len(correlation_df)} found, {min_data_points} required) "
-                       "across all metrics with non-zero values for correlation analysis within the selected date range and platform. "
-                       "Please adjust your date range, platform filter, or upload more data.",
-            "correlations": {
-                "engage_reach": None,
-                "engage_sales": None,
-                "reach_sales": None
-            },
-            "recommendations": {
-                "engage_reach": "Insufficient data to provide a recommendation for Engagement/Reach correlation.",
-                "engage_sales": "Insufficient data to provide a recommendation for Engagement/Sales correlation.",
-                "reach_sales": "Insufficient data to provide a recommendation for Reach/Sales correlation."
-            },
-            "chart_data": chart_data # Still return available data for plotting
-        }), 200
-
     # Calculate correlations and generate recommendations using correlation_df
     # Note: spearmanr handles NaN by dropping them, but we've already filled with 0.
     # It's important that the series used for spearmanr has variance.
@@ -1298,28 +1451,31 @@ def correlation_analysis():
        correlation_df['engagement'].std() > 0 and correlation_df['reach'].std() > 0:
         corr_er, _ = spearmanr(correlation_df['engagement'], correlation_df['reach'])
         correlations['engage_reach'] = round(corr_er, 2)
-        recommendations['engage_reach'] = get_recommendation_text(corr_er, "Engagement", "Reach")
+        recommendations['engage_reach'] = get_recommendation_text(corr_er, "Engagement", "Reach", correlation_df['engagement'], correlation_df['reach'], total_possible_dates)
     else:
         correlations['engage_reach'] = None
-        recommendations['engage_reach'] = "Missing or invariant 'engagement' or 'reach' data for correlation analysis."
+        # Pass empty series and 0 for total_possible_dates if no data for correlation
+        recommendations['engage_reach'] = get_recommendation_text(pd.NA, "Engagement", "Reach", pd.Series(), pd.Series(), total_possible_dates) 
 
     if 'engagement' in correlation_df.columns and 'revenue' in correlation_df.columns and \
        correlation_df['engagement'].std() > 0 and correlation_df['revenue'].std() > 0:
         corr_es, _ = spearmanr(correlation_df['engagement'], correlation_df['revenue'])
         correlations['engage_sales'] = round(corr_es, 2)
-        recommendations['engage_sales'] = get_recommendation_text(corr_es, "Engagement", "Sales")
+        recommendations['engage_sales'] = get_recommendation_text(corr_es, "Engagement", "Sales", correlation_df['engagement'], correlation_df['revenue'], total_possible_dates)
     else:
         correlations['engage_sales'] = None
-        recommendations['engage_sales'] = "Missing or invariant 'engagement' or 'sales' data for correlation analysis."
+        # Pass empty series and 0 for total_possible_dates if no data for correlation
+        recommendations['engage_sales'] = get_recommendation_text(pd.NA, "Engagement", "Sales", pd.Series(), pd.Series(), total_possible_dates)
 
     if 'reach' in correlation_df.columns and 'revenue' in correlation_df.columns and \
        correlation_df['reach'].std() > 0 and correlation_df['revenue'].std() > 0:
         corr_rs, _ = spearmanr(correlation_df['reach'], correlation_df['revenue'])
         correlations['reach_sales'] = round(corr_rs, 2)
-        recommendations['reach_sales'] = get_recommendation_text(corr_rs, "Reach", "Sales")
+        recommendations['reach_sales'] = get_recommendation_text(corr_rs, "Reach", "Sales", correlation_df['reach'], correlation_df['revenue'], total_possible_dates)
     else:
         correlations['reach_sales'] = None
-        recommendations['reach_sales'] = "Missing or invariant 'reach' or 'sales' data for correlation analysis."
+        # Pass empty series and 0 for total_possible_dates if no data for correlation
+        recommendations['reach_sales'] = get_recommendation_text(pd.NA, "Reach", "Sales", pd.Series(), pd.Series(), total_possible_dates)
 
     return jsonify({
         "message": "Correlation analysis successful.",

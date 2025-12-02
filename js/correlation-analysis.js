@@ -115,8 +115,8 @@ function createCorrelationChart(chartId, title, xLabel, yLabel, data, correlatio
             datasets: [{
                 label: 'Data Points',
                 data: data,
-                backgroundColor: 'rgba(75, 192, 192, 0.6)',
-                borderColor: 'rgba(75, 192, 192, 1)',
+                backgroundColor: 'rgba(90, 76, 209, 0.6)', // Lighter purple fill
+                borderColor: '#5A4CD1', // Purple hue for outline
                 borderWidth: 1,
                 pointRadius: 5,
                 pointHoverRadius: 7,
@@ -125,8 +125,8 @@ function createCorrelationChart(chartId, title, xLabel, yLabel, data, correlatio
                 label: 'Trend Line',
                 data: linePoints, // Use the calculated line points
                 type: 'line', // This dataset will be a line
-                borderColor: 'rgb(255, 99, 132)', // Red color for the trend line
-                backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                borderColor: '#E74C3C', // More red color for the trend line
+                backgroundColor: 'rgba(231, 76, 60, 0.2)', // Lighter red
                 borderWidth: 2,
                 pointRadius: 0, // No points for the trend line
                 fill: false,

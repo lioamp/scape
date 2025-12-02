@@ -65,6 +65,7 @@ window.currentUserTokenPromise = new Promise((resolve, reject) => {
                 resolve(token);
 
                 updateAdminUI(); 
+                updateUserProfileUI(user); // Call the new function to update user profile UI
 
                 const tokenAvailableEvent = new CustomEvent('tokenAvailable', {
                     detail: { token: window.currentUserToken, userRole: currentUserRole }
@@ -78,6 +79,7 @@ window.currentUserTokenPromise = new Promise((resolve, reject) => {
                 window.currentUserToken = null; // Clear token on error
                 reject(error); // Reject the promise on error
                 updateAdminUI(); // Ensure UI is hidden if claims fail
+                updateUserProfileUI(null); // Clear user profile UI on error
             }
         } else {
             // User is signed out.
@@ -88,6 +90,7 @@ window.currentUserTokenPromise = new Promise((resolve, reject) => {
             window.currentUserToken = null; // Clear token
             resolve(null); // Resolve the promise with null if no user (or an empty string if preferred)
             updateAdminUI(); // Hide UI elements if logged out
+            updateUserProfileUI(null); // Clear user profile UI if logged out
         }
     });
 });
@@ -201,12 +204,38 @@ function updateAdminUI() {
     }
 }
 
+/**
+ * Updates the user profile section in the sidebar with the logged-in user's information.
+ * @param {firebase.User} user - The authenticated Firebase user object.
+ */
+function updateUserProfileUI(user) {
+    const userProfileSection = document.getElementById("user-profile-section");
+    const userDisplayName = document.getElementById("user-display-name");
+    const userRole = document.getElementById("user-role");
+
+    if (userProfileSection && userDisplayName && userRole) {
+        if (user) {
+            userProfileSection.classList.remove("d-none"); // Show the profile section
+            userDisplayName.textContent = user.displayName || user.email || "User"; // Prefer display name, then email, then generic "User"
+            userRole.textContent = currentUserRole; // Use the globally determined role
+        } else {
+            userProfileSection.classList.add("d-none"); // Hide the profile section if no user
+            userDisplayName.textContent = "";
+            userRole.textContent = "";
+        }
+    } else {
+        console.warn("User profile UI elements not found. Ensure sidebar.html is loaded and contains the correct IDs.");
+    }
+}
+
+
 // Listen for the custom event dispatched by loadSidebar.js
 // This ensures that `updateAdminUI` is called once the sidebar elements are in the DOM.
 document.addEventListener('sidebarLoaded', () => {
     // If auth state has already been determined, update UI immediately.
-    // Otherwise, `onAuthStateChanged` will eventually call updateAdminUI.
+    // Otherwise, `onAuthStateChanged` will eventually call updateAdminUI and updateUserProfileUI.
     if (currentAuthUser) {
         updateAdminUI();
+        updateUserProfileUI(currentAuthUser); // Call here if user is already known
     }
 });
