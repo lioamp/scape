@@ -408,7 +408,7 @@ main {
 }
 
 .btn-success {
-    background: linear-gradient(135deg, #7B68EE, #5A4CD1) !important; /* Blue-purple gradient for success button */
+    background: linear-gradient(135deg, #49018d, #6407c2) !important; /* Blue-purple gradient for success button */
     border: none !important;
     border-radius: 8px !important;
     padding: 0.6rem 1.2rem !important;
